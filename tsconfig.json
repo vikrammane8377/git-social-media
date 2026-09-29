@@ -5,6 +5,7 @@
     { "path": "./packages/storage" },
     { "path": "./packages/video" },
     { "path": "./packages/events" },
+    { "path": "./packages/competitors" },
     { "path": "./apps/cli" }
   ]
 }

@@ -2,6 +2,7 @@
 import { runConfigCheck } from "./config-check.js";
 import { runVideo } from "./video.js";
 import { runEventsScan } from "./events.js";
+import { runCompetitorsScan } from "./competitors.js";
 
 async function main(argv: string[]): Promise<number> {
   const command = argv[2];
@@ -15,6 +16,8 @@ async function main(argv: string[]): Promise<number> {
       return runVideo(rest);
     case "scan:events":
       return runEventsScan(rest);
+    case "scan:competitors":
+      return runCompetitorsScan(rest);
     case undefined:
     case "help":
     case "--help":
@@ -37,6 +40,7 @@ function printUsage(): void {
   console.log("  check    Report each .env key as present/missing (values never shown)");
   console.log("  video        Generate a video clip from a prompt file and reference image(s)");
   console.log("  scan:events  Scan upcoming on-brand events and write a report");
+  console.log("  scan:competitors  Scan competitor Shorts and build a 30-day content plan");
   console.log("  help         Show this help");
 }
 

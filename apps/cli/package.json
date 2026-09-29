@@ -10,6 +10,7 @@
     "@bix/config": "*",
     "@bix/storage": "*",
     "@bix/video": "*",
-    "@bix/events": "*"
+    "@bix/events": "*",
+    "@bix/competitors": "*"
   }
 }

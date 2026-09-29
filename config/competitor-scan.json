@@ -1,0 +1,31 @@
+{
+  "model": "gpt-6-astra",
+  "reasoningEffort": "medium",
+  "youtubeApiBaseUrl": "https://www.googleapis.com/youtube/v3",
+  "channels": [
+    { "handle": "@duolingospanish", "name": "Duolingo Spanish", "weight": 1 },
+    { "handle": "@praktika_ai", "name": "Praktika", "weight": 1 },
+    { "handle": "@busuu", "name": "Busuu", "weight": 1 },
+    { "handle": "@falou_app", "name": "Falou", "weight": 0.5 }
+  ],
+  "maxVideosPerChannel": 30,
+  "maxShortSeconds": 180,
+  "planDays": 30,
+  "cadence": {
+    "postsPerWeek": 5,
+    "timezone": "America/Mexico_City",
+    "postingTime": "09:00",
+    "formatMix": {
+      "Responde a Bix": 0.4,
+      "False-friend reveal": 0.2,
+      "Speaking dare": 0.2,
+      "Rehearse-then-panic": 0.2
+    }
+  },
+  "evergreenFormats": [
+    "Responde a Bix series",
+    "Rehearse-then-panic",
+    "False-friend reveal",
+    "Speaking dare"
+  ]
+}

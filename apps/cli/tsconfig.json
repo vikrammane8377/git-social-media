@@ -8,7 +8,8 @@
     { "path": "../../packages/config" },
     { "path": "../../packages/storage" },
     { "path": "../../packages/video" },
-    { "path": "../../packages/events" }
+    { "path": "../../packages/events" },
+    { "path": "../../packages/competitors" }
   ],
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "dist"]

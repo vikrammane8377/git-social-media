@@ -10,6 +10,7 @@ export default defineConfig({
       "@bix/storage": r("./packages/storage/src/index.ts"),
       "@bix/video": r("./packages/video/src/index.ts"),
       "@bix/events": r("./packages/events/src/index.ts"),
+      "@bix/competitors": r("./packages/competitors/src/index.ts"),
     },
   },
   test: {

@@ -37,8 +37,8 @@ against the live fal API (real MP4 produced, resumability confirmed).
 - Defaults for the first test: 720p, 9:16, 5s, `generate_audio: true`.
 - Never asks the model for on-screen text/captions/signs (stated in the prompt).
 
-**Component 2: Weekly current-events scan** - code done; awaiting a real run by
-the owner (makes paid OpenAI calls). Needs `OPENAI_API_KEY` (present).
+**Component 2: Weekly current-events scan** - done; run once for real against
+the live OpenAI API. Needs `OPENAI_API_KEY` (present).
 
 - New package `packages/events` (`@bix/events`).
 - Three sources, merged and de-duplicated before scoring:
@@ -64,6 +64,51 @@ the owner (makes paid OpenAI calls). Needs `OPENAI_API_KEY` (present).
   `outputs/scans/events-YYYY-MM-DD.md` showing kept and blocked topics.
 - Settings in `config/events-scan.json` (model default `gpt-5.6`, `weeksAhead` 6,
   country lists, holiday API base URL, extra blocklist keywords).
+- First real run (2026-09-29): 35 web + 107 holiday topics -> 44 in window -> 40
+  kept, 4 blocked. Known follow-up (deferred by owner): blocklist substring
+  matching over-blocks some celebratory/cultural items (e.g. Día de Muertos hit
+  by "dead"). Precision fix (word boundaries + allowlist) is parked for later.
+
+**Component 3: Monthly competitor scan -> 30-day content plan** - code done;
+awaiting a real run (needs `YOUTUBE_API_KEY`, currently MISSING, plus confirmed
+channel IDs). Uses `OPENAI_API_KEY` (present).
+
+- New package `packages/competitors` (`@bix/competitors`).
+- **YouTube Data API v3** adapter (`YouTubeClient`, key only, no OAuth) reads
+  each tracked channel's recent Shorts: resolves the channel (`channels.list` by
+  `@handle` or id) to its uploads playlist, pages `playlistItems.list` for recent
+  video ids, then `videos.list` for title/publishedAt/duration/view-like-comment
+  counts. Avoids `search.list` (100 quota units) to respect quota. Shorts are
+  filtered by duration (`maxShortSeconds`, default 180s). Base URL is in config.
+  Field shapes follow the documented v3 contract but are **unverified against a
+  live key** (no key yet).
+- **GPT-6 Astra** is the model (confirmed from the owner-supplied model docs:
+  Responses API, web search and structured outputs supported, text+image in).
+  "medium mode" = `reasoning.effort: "medium"` (confirmed against the installed
+  SDK types). The SDK is wired only in `openai-client.ts` (`createAstraClient`);
+  the rest of the package codes against a tiny `LlmClient` so it stays testable.
+- The analyst (`OpenAiCompetitorAnalyst`) summarises patterns only - formats,
+  hooks, lengths, posting rhythm, themes, CTAs - and is told never to copy
+  scripts. The report always carries the caveat that public counts cannot show
+  organic vs paid reach or audience nationality.
+- The planner (`OpenAiPlanGenerator`) builds a 30-day plan combining competitor
+  insights + the latest events scan (read from the `event_ideas` table via
+  `LatestEventsReader`, upcoming only) + evergreen formats + the configured
+  cadence/format mix. Every returned slot is validated: date must be inside the
+  window and source must be event/competitor/evergreen, else it is dropped.
+- Each slot: date, posting time (Mexico City TZ by default), format, source,
+  topic, brand-fit, hook in Bix's voice, why it's in the plan, assets needed.
+- A channel that fails to resolve is recorded in `unresolved` and skipped; the
+  scan does not fail as a whole.
+- Output: plan saved to SQLite (`content_plans`, `plan_slots`) plus
+  `outputs/plans/plan-YYYY-MM.md` (readable) and `plan-YYYY-MM.json`.
+- Settings in `config/competitor-scan.json` (model `gpt-6-astra`,
+  `reasoningEffort` `medium`, YouTube base URL, channel list with weights,
+  `maxVideosPerChannel`, `maxShortSeconds`, `planDays`, cadence + format mix,
+  evergreen formats).
+- Channel handles in config are **unconfirmed placeholders**; the real channel
+  IDs for Duolingo Spanish, Praktika, Busuu and Falou (weighted lower) must be
+  confirmed before the first real run (the CLI prints this reminder too).
 
 ## How to run
 
@@ -81,19 +126,29 @@ the owner (makes paid OpenAI calls). Needs `OPENAI_API_KEY` (present).
   - Reads `config/events-scan.json` and `config/curated-calendar.json`.
   - Writes the report to `outputs/scans/events-YYYY-MM-DD.md` and saves ideas to
     SQLite.
+- `npm run scan:competitors`
+  - Requires `OPENAI_API_KEY` and `YOUTUBE_API_KEY` in `.env`. Makes paid OpenAI
+    calls (analysis + planning) and free public YouTube Data API reads.
+  - Reads `config/competitor-scan.json` and the latest `event_ideas` from SQLite.
+  - Writes `outputs/plans/plan-YYYY-MM.md` and `.json`, and saves the plan to
+    SQLite.
 
 ## What is mocked / not built yet
 
-- Component 2 has not had a real run yet in this repo - it is covered by unit
-  tests with mock providers (search, holidays, scorer). The owner still needs to
-  run it once (paid) to hold a real report.
+- Component 3 has not had a real run yet - it is covered by unit tests with mock
+  providers (YouTube client, LLM client, analyst, planner, events reader). It
+  needs `YOUTUBE_API_KEY` and confirmed channel IDs before a real run.
+- YouTube Data API v3 field shapes follow the documented contract but are
+  **unverified against a live key** (no key yet). The base URL is in
+  `config/competitor-scan.json` if it ever changes.
+- Competitor channel handles in `config/competitor-scan.json` are placeholders;
+  confirm the real channel IDs before the first real run.
 - The holiday API v3 endpoint (`date.nager.at/api/v3`) is confirmed reachable and
   keyless; if it ever moves, change `holidayApiBaseUrl` in
   `config/events-scan.json`.
-- Assumption to verify on first real run: `duration` is sent as a JSON number
-  (e.g. `5`); fal's schema lists `4`-`30` or `"auto"`. If fal rejects it, we
-  switch to a string. No fake success - a rejection will surface as an error.
-- YouTube integration (Component 3) not built.
+- Assumption to verify on first real video run: `duration` is sent as a JSON
+  number (e.g. `5`); fal's schema lists `4`-`30` or `"auto"`. If fal rejects it,
+  we switch to a string. No fake success - a rejection will surface as an error.
 - The `Database` interface is currently synchronous (SQLite). A future
   PostgreSQL implementation may need an async variant.
 - No scheduling, no GCP - local only for now.
@@ -104,13 +159,18 @@ Keys live only in `.env` (git-ignored) and are filled in by the owner.
 Reported by `npm run config:check` as present/missing:
 
 - `FAL_KEY` - Component 1. (present)
-- `OPENAI_API_KEY` - Components 2-3 (also powers web search in Component 2).
-- `YOUTUBE_API_KEY` - Component 3.
+- `OPENAI_API_KEY` - Components 2-3 (also powers web search). (present)
+- `YOUTUBE_API_KEY` - Component 3. (MISSING)
 
 ## What's next
 
-Owner to run `npm run scan:events` once (paid) and sanity-check the report:
-sensible upcoming on-brand topics, nothing sensitive slipping through.
+For Component 3's first real run, the owner needs to:
+1. Add `YOUTUBE_API_KEY` to `.env` (YouTube Data API v3 key, public data only).
+2. Confirm the real channel IDs/handles for Duolingo Spanish, Praktika, Busuu and
+   Falou in `config/competitor-scan.json` (current handles are placeholders).
+3. Run `npm run scan:competitors` (paid OpenAI + free YouTube) and sanity-check
+   `outputs/plans/plan-YYYY-MM.md`: on-brand 30-day plan, sensible event slots
+   inside their windows, competitor insights that clearly shaped it.
 
-Then Component 3: Monthly competitor scan -> 30-day content plan (YouTube Data
-API + OpenAI). Needs `YOUTUBE_API_KEY` (missing). Waiting for go-ahead.
+Then Component 4 (script writer + AI reviewer) - not started; waiting for
+go-ahead.
