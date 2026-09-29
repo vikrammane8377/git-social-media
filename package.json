@@ -18,7 +18,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "config:check": "tsx apps/cli/src/index.ts check",
-    "video": "tsx apps/cli/src/index.ts video"
+    "video": "tsx apps/cli/src/index.ts video",
+    "scan:events": "tsx apps/cli/src/index.ts scan:events"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

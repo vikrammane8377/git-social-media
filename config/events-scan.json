@@ -1,0 +1,8 @@
+{
+  "model": "gpt-5.6",
+  "weeksAhead": 6,
+  "searchCountries": ["MX", "CO", "ES", "AR", "US", "GB"],
+  "holidayCountries": ["MX", "CO", "ES", "AR", "US", "GB"],
+  "holidayApiBaseUrl": "https://date.nager.at/api/v3",
+  "blocklistKeywords": []
+}

@@ -1,0 +1,36 @@
+[
+  {
+    "title": "Halloween",
+    "summary": "Costumes, spooky fun, trick-or-treat vocabulary.",
+    "date": "2026-10-31",
+    "country": "US",
+    "url": "https://en.wikipedia.org/wiki/Halloween"
+  },
+  {
+    "title": "Día de Muertos",
+    "summary": "Mexican Day of the Dead; ofrendas, marigolds, remembrance.",
+    "date": "2026-11-01",
+    "endDate": "2026-11-02",
+    "country": "MX",
+    "url": "https://en.wikipedia.org/wiki/Day_of_the_Dead"
+  },
+  {
+    "title": "Thanksgiving (US)",
+    "summary": "US holiday; gratitude, family, food vocabulary.",
+    "date": "2026-11-26",
+    "country": "US",
+    "url": "https://en.wikipedia.org/wiki/Thanksgiving_(United_States)"
+  },
+  {
+    "title": "Christmas Day",
+    "summary": "Widely celebrated; gifts, greetings, seasonal English.",
+    "date": "2026-12-25",
+    "url": "https://en.wikipedia.org/wiki/Christmas"
+  },
+  {
+    "title": "FIFA Women's World Cup 2027 final draw",
+    "summary": "Draw for the 2027 tournament; football vocabulary and excitement.",
+    "date": "2026-12-05",
+    "url": "https://en.wikipedia.org/wiki/2027_FIFA_Women%27s_World_Cup"
+  }
+]

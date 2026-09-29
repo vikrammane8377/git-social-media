@@ -9,6 +9,7 @@
   "dependencies": {
     "@bix/config": "*",
     "@bix/storage": "*",
-    "@bix/video": "*"
+    "@bix/video": "*",
+    "@bix/events": "*"
   }
 }

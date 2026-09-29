@@ -9,6 +9,7 @@ export default defineConfig({
       "@bix/config": r("./packages/config/src/index.ts"),
       "@bix/storage": r("./packages/storage/src/index.ts"),
       "@bix/video": r("./packages/video/src/index.ts"),
+      "@bix/events": r("./packages/events/src/index.ts"),
     },
   },
   test: {
