@@ -17,7 +17,8 @@
     "typecheck": "tsc --build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "config:check": "tsx apps/cli/src/index.ts check"
+    "config:check": "tsx apps/cli/src/index.ts check",
+    "video": "tsx apps/cli/src/index.ts video"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

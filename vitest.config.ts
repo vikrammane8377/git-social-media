@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       "@bix/config": r("./packages/config/src/index.ts"),
       "@bix/storage": r("./packages/storage/src/index.ts"),
+      "@bix/video": r("./packages/video/src/index.ts"),
     },
   },
   test: {

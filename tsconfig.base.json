@@ -18,7 +18,8 @@
     "skipLibCheck": true,
     "paths": {
       "@bix/config": ["./packages/config/src/index.ts"],
-      "@bix/storage": ["./packages/storage/src/index.ts"]
+      "@bix/storage": ["./packages/storage/src/index.ts"],
+      "@bix/video": ["./packages/video/src/index.ts"]
     }
   }
 }

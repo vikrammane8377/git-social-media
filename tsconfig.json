@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/config" },
     { "path": "./packages/storage" },
+    { "path": "./packages/video" },
     { "path": "./apps/cli" }
   ]
 }
