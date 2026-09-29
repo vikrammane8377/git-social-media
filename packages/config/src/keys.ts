@@ -21,12 +21,7 @@ export const KNOWN_KEYS: readonly KnownKey[] = [
   {
     name: "OPENAI_API_KEY",
     component: "Components 2-3: scans and planning",
-    purpose: "Score topics and summarise patterns via OpenAI.",
-  },
-  {
-    name: "NEWS_API_KEY",
-    component: "Component 2: Weekly current-events scan",
-    purpose: "Fetch news for the current-events scan.",
+    purpose: "Score topics, summarise patterns, and run web search via OpenAI.",
   },
   {
     name: "YOUTUBE_API_KEY",

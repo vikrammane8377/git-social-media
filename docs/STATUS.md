@@ -42,8 +42,7 @@ Keys live only in `.env` (git-ignored) and are filled in by the owner.
 Reported by `npm run config:check` as present/missing:
 
 - `FAL_KEY` - Component 1.
-- `OPENAI_API_KEY` - Components 2-3.
-- `NEWS_API_KEY` - Component 2.
+- `OPENAI_API_KEY` - Components 2-3 (also powers web search in Component 2).
 - `YOUTUBE_API_KEY` - Component 3.
 
 ## What's next
