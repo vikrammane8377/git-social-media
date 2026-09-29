@@ -1,0 +1,12 @@
+{
+  "name": "@bix/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "bix": "./dist/index.js"
+  },
+  "dependencies": {
+    "@bix/config": "*"
+  }
+}

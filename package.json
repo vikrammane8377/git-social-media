@@ -1,0 +1,31 @@
+{
+  "name": "bix-social-console",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bix Social Console - built one component at a time.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "tsc --build --clean",
+    "typecheck": "tsc --build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "config:check": "tsx apps/cli/src/index.ts check"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  }
+}
