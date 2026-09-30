@@ -19,7 +19,15 @@ export function createAstraClient(apiKey: string): LlmClient {
         tools: request.tools as OpenAI.Responses.Tool[] | undefined,
         reasoning: request.reasoningEffort ? { effort: request.reasoningEffort } : undefined,
       });
-      return { output_text: response.output_text };
+      return {
+        output_text: response.output_text,
+        usage: response.usage
+          ? {
+              inputTokens: response.usage.input_tokens,
+              outputTokens: response.usage.output_tokens,
+            }
+          : undefined,
+      };
     },
   };
 }

@@ -28,4 +28,14 @@ export const KNOWN_KEYS: readonly KnownKey[] = [
     component: "Component 3: Monthly competitor scan",
     purpose: "Read public YouTube data for competitor Shorts.",
   },
+  {
+    name: "YOUTUBE_CLIENT_ID",
+    component: "Component 5: Publish generated video to YouTube",
+    purpose: "Desktop-app OAuth client id for uploading videos (public client).",
+  },
+  {
+    name: "YOUTUBE_CLIENT_SECRET",
+    component: "Component 5: Publish generated video to YouTube",
+    purpose: "Desktop-app OAuth client secret paired with the client id.",
+  },
 ];

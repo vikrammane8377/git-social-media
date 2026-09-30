@@ -11,6 +11,12 @@ export interface VideoRequest {
   readonly aspectRatio: string;
   readonly duration: number | string;
   readonly generateAudio: boolean;
+  /** Talking-avatar providers only: the line the character speaks. */
+  readonly textInput?: string;
+  /** Talking-avatar providers only: the built-in TTS voice name. */
+  readonly voice?: string;
+  /** Talking-avatar providers only: number of frames (controls length). */
+  readonly numFrames?: number;
   /** Short label used in the output filename (e.g. the prompt file's base name). */
   readonly label: string;
 }
@@ -89,6 +95,9 @@ export class VideoRunner {
       duration: request.duration,
       generateAudio: request.generateAudio,
       refImagePaths: request.refImagePaths,
+      textInput: request.textInput,
+      voice: request.voice,
+      numFrames: request.numFrames,
     });
 
     const outputPath = `outputs/video/${request.label}-${jobId.slice(0, 8)}.mp4`;
@@ -131,6 +140,9 @@ export class VideoRunner {
         aspectRatio: request.aspectRatio,
         duration: request.duration,
         generateAudio: request.generateAudio,
+        textInput: request.textInput,
+        voice: request.voice,
+        numFrames: request.numFrames,
       };
 
       this.log("Submitting job to provider...");

@@ -7,6 +7,8 @@ import {
   OpenAiPlanGenerator,
   LatestEventsReader,
   ContentPlanStore,
+  UsageTrackingClient,
+  computeCost,
   createAstraClient,
   loadCompetitorConfig,
   renderPlanReport,
@@ -46,7 +48,8 @@ export async function runCompetitorsScan(argv: string[]): Promise<number> {
   const configDir = resolve(process.cwd(), "config");
   const config = loadCompetitorConfig(configDir);
 
-  const astra = createAstraClient(openaiKey);
+  // Wrap the real client so we can report exactly how many tokens this run used.
+  const astra = new UsageTrackingClient(createAstraClient(openaiKey));
   const youtube = new YouTubeDataClient({
     apiKey: youtubeKey,
     fetch: (url) => fetch(url),
@@ -105,6 +108,24 @@ export async function runCompetitorsScan(argv: string[]): Promise<number> {
     console.log(`Saved the plan to SQLite and wrote:`);
     console.log(`  ${fileStorage.localPath(mdPath)}`);
     console.log(`  ${fileStorage.localPath(jsonPath)}`);
+
+    const cost = computeCost(astra.totals(), config.pricing);
+    console.log("");
+    console.log("Cost of this run (OpenAI, actual usage):");
+    console.log(`  Model:  ${config.model} @ $${config.pricing.inputPerMillion}/1M in, $${config.pricing.outputPerMillion}/1M out`);
+    console.log(`  Calls:  ${cost.calls} (web search on ${cost.webSearchCalls})`);
+    if (cost.inputTokens === 0 && cost.outputTokens === 0) {
+      console.log("  Token usage was not reported by the API, so no dollar cost can be shown.");
+      console.log("  Check your OpenAI usage dashboard for the exact amount.");
+    } else {
+      console.log(`  Input:  ${cost.inputTokens.toLocaleString()} tokens = $${cost.inputCost.toFixed(4)}`);
+      console.log(`  Output: ${cost.outputTokens.toLocaleString()} tokens = $${cost.outputCost.toFixed(4)}`);
+      console.log(`  Token cost total: $${cost.total.toFixed(4)}`);
+    }
+    if (cost.webSearchCalls > 0) {
+      console.log("  Plus a web-search per-call fee (billed separately by OpenAI, not included above).");
+    }
+    console.log("  YouTube Data API reads are free within the daily quota.");
     return 0;
   } catch (err) {
     console.error("");

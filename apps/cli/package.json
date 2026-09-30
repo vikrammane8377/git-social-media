@@ -10,6 +10,8 @@
     "@bix/config": "*",
     "@bix/storage": "*",
     "@bix/video": "*",
+    "@bix/higgsfield": "*",
+    "@bix/youtube": "*",
     "@bix/events": "*",
     "@bix/competitors": "*"
   }

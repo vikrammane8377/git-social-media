@@ -3,6 +3,8 @@ import { runConfigCheck } from "./config-check.js";
 import { runVideo } from "./video.js";
 import { runEventsScan } from "./events.js";
 import { runCompetitorsScan } from "./competitors.js";
+import { runHiggsfield } from "./higgsfield.js";
+import { runYoutube } from "./youtube.js";
 
 async function main(argv: string[]): Promise<number> {
   const command = argv[2];
@@ -18,6 +20,10 @@ async function main(argv: string[]): Promise<number> {
       return runEventsScan(rest);
     case "scan:competitors":
       return runCompetitorsScan(rest);
+    case "higgsfield":
+      return runHiggsfield(rest);
+    case "youtube":
+      return runYoutube(rest);
     case undefined:
     case "help":
     case "--help":
@@ -41,6 +47,8 @@ function printUsage(): void {
   console.log("  video        Generate a video clip from a prompt file and reference image(s)");
   console.log("  scan:events  Scan upcoming on-brand events and write a report");
   console.log("  scan:competitors  Scan competitor Shorts and build a 30-day content plan");
+  console.log("  higgsfield   Sign in to Higgsfield MCP and generate via subscription (login|status|tools)");
+  console.log("  youtube      Sign in to YouTube and publish a generated video (login|status|upload)");
   console.log("  help         Show this help");
 }
 

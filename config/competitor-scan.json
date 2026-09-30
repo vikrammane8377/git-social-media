@@ -3,10 +3,10 @@
   "reasoningEffort": "medium",
   "youtubeApiBaseUrl": "https://www.googleapis.com/youtube/v3",
   "channels": [
-    { "handle": "@duolingospanish", "name": "Duolingo Spanish", "weight": 1 },
+    { "handle": "@duolingoespanol", "name": "Duolingo Español", "weight": 1 },
     { "handle": "@praktika_ai", "name": "Praktika", "weight": 1 },
     { "handle": "@busuu", "name": "Busuu", "weight": 1 },
-    { "handle": "@falou_app", "name": "Falou", "weight": 0.5 }
+    { "handle": "@FalouApp", "name": "Falou", "weight": 0.5 }
   ],
   "maxVideosPerChannel": 30,
   "maxShortSeconds": 180,
@@ -27,5 +27,6 @@
     "Rehearse-then-panic",
     "False-friend reveal",
     "Speaking dare"
-  ]
+  ],
+  "pricing": { "inputPerMillion": 10, "outputPerMillion": 50 }
 }

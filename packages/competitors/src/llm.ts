@@ -8,8 +8,16 @@
 /** Reasoning effort levels GPT-6 Astra supports (per the model docs). */
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
+/** Token counts the provider reports for a single call. */
+export interface Usage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface LlmResponse {
   output_text: string;
+  /** Token usage for the call, when the provider reports it. */
+  usage?: Usage;
 }
 
 export interface LlmRequest {
@@ -23,6 +31,71 @@ export interface LlmRequest {
 
 export interface LlmClient {
   create(request: LlmRequest): Promise<LlmResponse>;
+}
+
+/** Model pricing in USD per one million tokens (from the model docs). */
+export interface Pricing {
+  inputPerMillion: number;
+  outputPerMillion: number;
+}
+
+/** Running totals an accumulating client exposes. */
+export interface UsageTotals {
+  inputTokens: number;
+  outputTokens: number;
+  calls: number;
+  /** Calls that requested web search (each carries an extra per-call tool fee). */
+  webSearchCalls: number;
+}
+
+export interface CostBreakdown extends UsageTotals {
+  inputCost: number;
+  outputCost: number;
+  /** Token cost only. Web-search per-call fees are billed separately by OpenAI. */
+  total: number;
+}
+
+/** Turn token totals into dollars at the given pricing (token cost only). */
+export function computeCost(totals: UsageTotals, pricing: Pricing): CostBreakdown {
+  const inputCost = (totals.inputTokens / 1_000_000) * pricing.inputPerMillion;
+  const outputCost = (totals.outputTokens / 1_000_000) * pricing.outputPerMillion;
+  return { ...totals, inputCost, outputCost, total: inputCost + outputCost };
+}
+
+/**
+ * Wraps an {@link LlmClient} to accumulate token usage across every call, so a
+ * run can report how much it actually spent. Web-search calls are counted
+ * separately because they carry an extra per-call fee not included in token
+ * pricing (billed by OpenAI separately). Reports zero tokens honestly when the
+ * provider does not return usage — never invents numbers.
+ */
+export class UsageTrackingClient implements LlmClient {
+  private inputTokens = 0;
+  private outputTokens = 0;
+  private calls = 0;
+  private webSearchCalls = 0;
+
+  constructor(private readonly inner: LlmClient) {}
+
+  async create(request: LlmRequest): Promise<LlmResponse> {
+    const response = await this.inner.create(request);
+    this.calls += 1;
+    if (request.tools?.some((t) => t.type === "web_search")) this.webSearchCalls += 1;
+    if (response.usage) {
+      this.inputTokens += response.usage.inputTokens;
+      this.outputTokens += response.usage.outputTokens;
+    }
+    return response;
+  }
+
+  totals(): UsageTotals {
+    return {
+      inputTokens: this.inputTokens,
+      outputTokens: this.outputTokens,
+      calls: this.calls,
+      webSearchCalls: this.webSearchCalls,
+    };
+  }
 }
 
 /**

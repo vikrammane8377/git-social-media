@@ -1,0 +1,3 @@
+A vertical (9:16) clip of Bix, a friendly cartoon mascot, standing and speaking directly to the camera with a warm, witty, encouraging expression. Natural, expressive lip movement synced to the dialogue, friendly hand gestures, gentle idle motion. Soft even studio lighting, clean simple background, camera steady at eye level. In the final seconds Bix pauses and looks expectantly at the viewer, tilting his head as if waiting for an answer. No on-screen text, captions, signs or logos.
+
+Bix speaks in warm, clear Spanish, then waits: "¡Hola! Soy Bix, tu entrenador de inglés. Hoy vamos a practicar algo muy fácil. Dime una cosa... ¿cómo te llamas? Pero esta vez quiero que me lo digas en inglés. Piénsalo... y dilo en voz alta. Vamos, te escucho."

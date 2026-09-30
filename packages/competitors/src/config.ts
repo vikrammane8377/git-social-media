@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { ReasoningEffort } from "./llm.js";
+import type { Pricing, ReasoningEffort } from "./llm.js";
 import type { ChannelConfig } from "./types.js";
 import type { Cadence } from "./plan.js";
 import { DEFAULT_YOUTUBE_BASE_URL } from "./youtube.js";
@@ -25,6 +25,8 @@ export interface CompetitorScanConfig {
   cadence: Cadence;
   /** Evergreen format ideas always available to the planner. */
   evergreenFormats: string[];
+  /** Model pricing (USD per 1M tokens), for per-run cost reporting. */
+  pricing: Pricing;
 }
 
 const DEFAULT_REASONING: ReasoningEffort = "medium";
@@ -59,6 +61,10 @@ export const DEFAULT_COMPETITOR_CONFIG: CompetitorScanConfig = {
     "False-friend reveal",
     "Speaking dare",
   ],
+  // GPT-6 Astra list price from the model docs: $10 / 1M input, $50 / 1M output.
+  // Reasoning tokens bill as output. Web-search calls add a per-call fee that is
+  // NOT captured here (billed by OpenAI separately).
+  pricing: { inputPerMillion: 10, outputPerMillion: 50 },
 };
 
 const REASONING_VALUES: ReadonlySet<string> = new Set<ReasoningEffort>([
@@ -95,6 +101,17 @@ function asChannels(value: unknown, fallback: ChannelConfig[]): ChannelConfig[] 
     out.push({ name, handle, id, weight });
   }
   return out.length > 0 ? out : fallback;
+}
+
+function asPricing(value: unknown, fallback: Pricing): Pricing {
+  if (typeof value !== "object" || value === null) return fallback;
+  const r = value as Record<string, unknown>;
+  return {
+    inputPerMillion:
+      typeof r.inputPerMillion === "number" && r.inputPerMillion >= 0 ? r.inputPerMillion : fallback.inputPerMillion,
+    outputPerMillion:
+      typeof r.outputPerMillion === "number" && r.outputPerMillion >= 0 ? r.outputPerMillion : fallback.outputPerMillion,
+  };
 }
 
 function asCadence(value: unknown, fallback: Cadence): Cadence {
@@ -145,5 +162,6 @@ export function loadCompetitorConfig(configDir: string): CompetitorScanConfig {
     planDays: typeof r.planDays === "number" && r.planDays > 0 ? Math.floor(r.planDays) : d.planDays,
     cadence: asCadence(r.cadence, d.cadence),
     evergreenFormats: asStringArray(r.evergreenFormats, d.evergreenFormats),
+    pricing: asPricing(r.pricing, d.pricing),
   };
 }

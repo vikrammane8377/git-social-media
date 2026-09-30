@@ -22,6 +22,14 @@ describe("loadCompetitorConfig", () => {
     expect(config.model).toBe("gpt-6-astra");
     expect(config.reasoningEffort).toBe("medium");
     expect(config.channels.length).toBe(DEFAULT_COMPETITOR_CONFIG.channels.length);
+    expect(config.pricing).toEqual({ inputPerMillion: 10, outputPerMillion: 50 });
+  });
+
+  it("merges custom pricing over defaults", () => {
+    const config = loadCompetitorConfig(
+      tempConfigDir(JSON.stringify({ pricing: { inputPerMillion: 12, outputPerMillion: 60 } })),
+    );
+    expect(config.pricing).toEqual({ inputPerMillion: 12, outputPerMillion: 60 });
   });
 
   it("merges partial config over defaults and validates channels", () => {

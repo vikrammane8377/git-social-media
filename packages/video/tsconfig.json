@@ -6,6 +6,7 @@
   },
   "references": [
     { "path": "../config" },
+    { "path": "../higgsfield" },
     { "path": "../storage" }
   ],
   "include": ["src/**/*.ts"],

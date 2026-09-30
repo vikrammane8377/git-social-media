@@ -4,6 +4,12 @@ export {
   type LlmRequest,
   type LlmResponse,
   type ReasoningEffort,
+  type Usage,
+  type Pricing,
+  type UsageTotals,
+  type CostBreakdown,
+  computeCost,
+  UsageTrackingClient,
   parseJsonArray,
   parseJsonObject,
 } from "./llm.js";

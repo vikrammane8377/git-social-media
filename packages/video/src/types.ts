@@ -18,6 +18,15 @@ export interface VideoJobInput {
   readonly duration: number | string;
   /** Whether the model should generate synchronised audio. */
   readonly generateAudio: boolean;
+  /**
+   * Talking-avatar providers only: the line the character speaks. The provider
+   * converts this text to speech and lip-syncs it (no separate audio file).
+   */
+  readonly textInput?: string;
+  /** Talking-avatar providers only: the built-in TTS voice name. */
+  readonly voice?: string;
+  /** Talking-avatar providers only: number of frames, which controls length. */
+  readonly numFrames?: number;
 }
 
 /** The lifecycle state of a submitted job, normalised across providers. */

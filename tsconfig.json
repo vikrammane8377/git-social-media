@@ -4,6 +4,8 @@
     { "path": "./packages/config" },
     { "path": "./packages/storage" },
     { "path": "./packages/video" },
+    { "path": "./packages/higgsfield" },
+    { "path": "./packages/youtube" },
     { "path": "./packages/events" },
     { "path": "./packages/competitors" },
     { "path": "./apps/cli" }

@@ -12,6 +12,10 @@ export interface JobKeyInput {
   readonly duration: number | string;
   readonly generateAudio: boolean;
   readonly refImagePaths: readonly string[];
+  /** Talking-avatar providers only; included in the key when present. */
+  readonly textInput?: string;
+  readonly voice?: string;
+  readonly numFrames?: number;
 }
 
 /**
@@ -27,6 +31,11 @@ export function computeJobKey(input: JobKeyInput): string {
   hash.update(`aspect_ratio:${input.aspectRatio}\n`);
   hash.update(`duration:${String(input.duration)}\n`);
   hash.update(`generate_audio:${String(input.generateAudio)}\n`);
+  // Talking-avatar fields only contribute when present, so existing image/video
+  // job keys are unchanged.
+  if (input.textInput !== undefined) hash.update(`text_input:${input.textInput}\n`);
+  if (input.voice !== undefined) hash.update(`voice:${input.voice}\n`);
+  if (input.numFrames !== undefined) hash.update(`num_frames:${String(input.numFrames)}\n`);
   for (const p of input.refImagePaths) {
     const content = readFileSync(p);
     const contentHash = createHash("sha256").update(content).digest("hex");
