@@ -16,8 +16,10 @@ import { requireKey } from "@bix/config";
  *
  * We open Google's consent page in a browser and capture the authorization code
  * on a short-lived loopback server (the standard pattern for CLI logins).
- * `access_type=offline` + `prompt=consent` guarantee a refresh token so the
- * access token renews silently.
+ * `access_type=offline` + `prompt=select_account consent` guarantee a refresh
+ * token so the access token renews silently, and always show the account chooser
+ * so a repeat login can switch to a different Google account or Brand-Account
+ * channel instead of silently reusing the first one.
  *
  * Tokens are secrets: written only to `data/` (gitignored, chmod 0600) and
  * never logged.
@@ -27,8 +29,15 @@ import { requireKey } from "@bix/config";
 const AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 
-/** The single scope we need: upload/insert videos for the owner's channel. */
-const SCOPE = "https://www.googleapis.com/auth/youtube.upload";
+/**
+ * Scopes we need: `youtube.upload` inserts videos; the broader `youtube`
+ * (manage) scope is required to flip an existing video's privacy via
+ * `videos.update`. Adding a scope invalidates old tokens — re-run `login`.
+ */
+const SCOPE = [
+  "https://www.googleapis.com/auth/youtube.upload",
+  "https://www.googleapis.com/auth/youtube",
+].join(" ");
 
 /** Loopback port for the redirect (4123 is Higgsfield's; YouTube uses 4124). */
 const REDIRECT_PORT = 4124;
@@ -104,9 +113,11 @@ export async function startLogin(): Promise<LoginHandle> {
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("code_challenge", challenge);
   authUrl.searchParams.set("code_challenge_method", "S256");
-  // Guarantee a refresh token on every consent, even for a repeat login.
+  // Guarantee a refresh token on every consent, even for a repeat login, and
+  // always show the account chooser so a repeat login can switch Google account
+  // or Brand-Account channel (otherwise Google silently reuses the first one).
   authUrl.searchParams.set("access_type", "offline");
-  authUrl.searchParams.set("prompt", "consent");
+  authUrl.searchParams.set("prompt", "select_account consent");
 
   const codePromise = captureAuthCode(state);
 
