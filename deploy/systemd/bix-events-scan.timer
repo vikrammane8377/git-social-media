@@ -1,0 +1,9 @@
+[Unit]
+Description=Weekly current-events scan (Mon 06:00 America/Mexico_City)
+
+[Timer]
+OnCalendar=Mon *-*-* 06:00:00 America/Mexico_City
+Persistent=true
+
+[Install]
+WantedBy=timers.target

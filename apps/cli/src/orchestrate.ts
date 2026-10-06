@@ -514,6 +514,23 @@ export async function runOrchestrate(argv: string[]): Promise<number> {
     });
     console.log(outcome.skipped ? "Already published (no duplicate created)." : "Published.");
     console.log(`YouTube:    ${outcome.url}`);
+
+    // The clip is safely on YouTube now (that's the source of truth), so the
+    // local MP4s this run produced — the raw clip and its captioned render — are
+    // disposable. Delete them immediately to keep the VM's disk from filling up.
+    // Cleanup never fails the run: the publish already succeeded, and
+    // delete() is a no-op on a missing file.
+    try {
+      for (const key of new Set([outputPath, publishKey])) {
+        fileStorage.delete(key);
+      }
+      console.log("Cleaned up the local video file(s) now that the upload succeeded.");
+    } catch (err) {
+      console.warn(
+        `Could not remove the local video file(s): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
     console.log("");
     console.log(
       args.privacy === "public"

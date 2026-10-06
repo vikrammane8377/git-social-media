@@ -1,0 +1,22 @@
+[Unit]
+Description=Bix Social Console dashboard (API + built SPA)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bix
+Group=bix
+WorkingDirectory=/opt/bix-learn-sm
+EnvironmentFile=/opt/bix-learn-sm/.env
+# NODE_ENV=production makes the server serve apps/web/dist and spawn the built
+# CLI (node apps/cli/dist/index.js). PORT is bound on localhost only; reach it
+# over an SSH tunnel. DASHBOARD_TOKEN comes from .env and locks /api/*.
+Environment=NODE_ENV=production
+Environment=PORT=8787
+ExecStart=/usr/bin/node packages/server/dist/server.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
