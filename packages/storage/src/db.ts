@@ -53,6 +53,10 @@ export class SqliteDatabase implements Database {
     this.db = new DatabaseSync(location);
     this.db.exec("PRAGMA journal_mode = WAL;");
     this.db.exec("PRAGMA foreign_keys = ON;");
+    // Wait up to 5s for a briefly-held lock instead of failing immediately with
+    // SQLITE_BUSY. The dashboard holds a long-lived writer while a spawned CLI
+    // run opens its own connection, so transient write contention is expected.
+    this.db.exec("PRAGMA busy_timeout = 5000;");
   }
 
   exec(sql: string): void {
