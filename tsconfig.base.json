@@ -23,7 +23,10 @@
       "@bix/higgsfield": ["./packages/higgsfield/src/index.ts"],
       "@bix/youtube": ["./packages/youtube/src/index.ts"],
       "@bix/events": ["./packages/events/src/index.ts"],
-      "@bix/competitors": ["./packages/competitors/src/index.ts"]
+      "@bix/competitors": ["./packages/competitors/src/index.ts"],
+      "@bix/scripts": ["./packages/scripts/src/index.ts"],
+      "@bix/server": ["./packages/server/src/index.ts"],
+      "@bix/captions": ["./packages/captions/src/index.ts"]
     }
   }
 }

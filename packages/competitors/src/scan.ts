@@ -23,6 +23,7 @@ export interface CompetitorScanDeps {
   maxVideosPerChannel: number;
   maxShortSeconds: number;
   planDays: number;
+  targets: { eventSlots: number; competitorSlots: number };
   cadence: Cadence;
   today?: Date;
   logger?: (message: string) => void;
@@ -31,7 +32,7 @@ export interface CompetitorScanDeps {
 /**
  * Run one competitor scan end to end:
  *   resolve channels -> pull recent Shorts -> summarise patterns
- *   -> read latest events -> generate the 30-day plan.
+ *   -> read latest events -> generate the content plan.
  * A channel that fails to resolve is recorded in `unresolved` and skipped; the
  * scan does not fail as a whole. Pure with respect to storage: returns the
  * result; the CLI persists it and writes the report.
@@ -73,15 +74,27 @@ export async function runCompetitorScan(deps: CompetitorScanDeps): Promise<Compe
   const events = deps.events.read(scanDate);
   log(`Loaded ${events.length} upcoming event idea(s) from the latest events scan.`);
 
-  log("Building the 30-day plan...");
+  log(
+    `Building plan: aiming for ${deps.targets.eventSlots} event + ` +
+      `${deps.targets.competitorSlots} competitor slot(s)...`,
+  );
   const plan = await deps.planner.generate({
     startDate: scanDate,
     planDays: deps.planDays,
+    targets: deps.targets,
     cadence: deps.cadence,
     insights,
     events,
   });
-  log(`Plan built: ${plan.slots.length} slot(s) from ${plan.startDate} to ${plan.endDate}.`);
+  const byEvent = plan.slots.filter((s) => s.source === "event").length;
+  const byComp = plan.slots.length - byEvent;
+  log(
+    `Plan built: ${plan.slots.length} slot(s) (${byEvent} event, ${byComp} competitor) ` +
+      `from ${plan.startDate} to ${plan.endDate}.`,
+  );
+  if (byEvent < deps.targets.eventSlots) {
+    log(`Only ${byEvent} event slot(s) available; backfilled with competitor slots.`);
+  }
 
   return { date: scanDate, channels, videos, insights, plan, unresolved };
 }

@@ -38,4 +38,9 @@ export const KNOWN_KEYS: readonly KnownKey[] = [
     component: "Component 5: Publish generated video to YouTube",
     purpose: "Desktop-app OAuth client secret paired with the client id.",
   },
+  {
+    name: "CAPTIONS",
+    component: "Component 6: Burn-in captions (OpusClip)",
+    purpose: "Authenticate with the OpusClip API to caption generated videos.",
+  },
 ];

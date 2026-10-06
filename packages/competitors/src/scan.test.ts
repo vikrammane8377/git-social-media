@@ -9,6 +9,7 @@ import type {
   ContentPlan,
   ResolvedChannel,
 } from "./types.js";
+import type { PlanRequest } from "./plan.js";
 
 const cadence: Cadence = {
   postsPerWeek: 5,
@@ -51,9 +52,10 @@ function fakeYouTube(): YouTubeClient {
 }
 
 describe("runCompetitorScan", () => {
-  it("skips channels that fail to resolve and still builds a plan", async () => {
+  it("skips channels that fail to resolve, threads targets, and logs the breakdown", async () => {
     const events: EventsReader = { read: () => [] };
-    const captured: { videos?: CompetitorVideo[] } = {};
+    const captured: { videos?: CompetitorVideo[]; request?: PlanRequest } = {};
+    const logs: string[] = [];
 
     const result = await runCompetitorScan({
       youtube: fakeYouTube(),
@@ -64,20 +66,32 @@ describe("runCompetitorScan", () => {
         },
       },
       planner: {
-        async generate(): Promise<ContentPlan> {
+        async generate(request): Promise<ContentPlan> {
+          captured.request = request;
           return {
             month: "2026-09",
             startDate: "2026-09-29",
-            endDate: "2026-10-28",
+            endDate: "2026-12-21",
             timezone: cadence.timezone,
             slots: [
               {
                 date: "2026-09-30",
                 time: "09:00",
                 format: "Responde a Bix",
-                source: "evergreen",
+                source: "event",
                 topic: "t",
                 brandFit: 8,
+                hook: "h",
+                why: "w",
+                assets: [],
+              },
+              {
+                date: "2026-10-05",
+                time: "09:00",
+                format: "Responde a Bix",
+                source: "competitor",
+                topic: "t2",
+                brandFit: 7,
                 hook: "h",
                 why: "w",
                 assets: [],
@@ -94,8 +108,10 @@ describe("runCompetitorScan", () => {
       maxVideosPerChannel: 10,
       maxShortSeconds: 180,
       planDays: 30,
+      targets: { eventSlots: 30, competitorSlots: 30 },
       cadence,
       today: new Date("2026-09-29T00:00:00Z"),
+      logger: (m) => logs.push(m),
     });
 
     expect(result.channels).toHaveLength(1);
@@ -103,7 +119,14 @@ describe("runCompetitorScan", () => {
     expect(result.unresolved[0].channel.name).toBe("Broken");
     expect(result.videos).toHaveLength(1);
     expect(captured.videos).toHaveLength(1);
-    expect(result.plan.slots).toHaveLength(1);
+    expect(result.plan.slots).toHaveLength(2);
     expect(result.date).toBe("2026-09-29");
+
+    // Planner received the targets.
+    expect(captured.request?.targets).toEqual({ eventSlots: 30, competitorSlots: 30 });
+
+    // Breakdown log emitted + shortfall warning (only 1 event vs target 30).
+    expect(logs.some((l) => l.includes("1 event, 1 competitor"))).toBe(true);
+    expect(logs.some((l) => l.includes("backfilled with competitor slots"))).toBe(true);
   });
 });

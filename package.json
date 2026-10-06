@@ -22,7 +22,13 @@
     "scan:events": "tsx apps/cli/src/index.ts scan:events",
     "scan:competitors": "tsx apps/cli/src/index.ts scan:competitors",
     "higgsfield": "tsx apps/cli/src/index.ts higgsfield",
-    "youtube": "tsx apps/cli/src/index.ts youtube"
+    "youtube": "tsx apps/cli/src/index.ts youtube",
+    "script": "tsx apps/cli/src/index.ts script",
+    "orchestrate": "tsx apps/cli/src/index.ts orchestrate",
+    "run-daily": "tsx apps/cli/src/index.ts run-daily",
+    "server": "tsx packages/server/src/server.ts",
+    "web": "npm --workspace apps/web run dev",
+    "web:build": "npm --workspace apps/web run build"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

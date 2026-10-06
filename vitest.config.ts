@@ -13,10 +13,13 @@ export default defineConfig({
       "@bix/youtube": r("./packages/youtube/src/index.ts"),
       "@bix/events": r("./packages/events/src/index.ts"),
       "@bix/competitors": r("./packages/competitors/src/index.ts"),
+      "@bix/scripts": r("./packages/scripts/src/index.ts"),
+      "@bix/server": r("./packages/server/src/index.ts"),
     },
   },
   test: {
     include: ["packages/**/*.test.ts", "apps/**/*.test.ts"],
+    exclude: ["apps/web/**", "**/node_modules/**"],
     environment: "node",
   },
 });

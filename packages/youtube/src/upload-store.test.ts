@@ -55,6 +55,54 @@ describe("YouTubeUploadStore", () => {
     expect(completed).toBe(true);
   });
 
+  it("getBySlot returns the newest upload for a slot across re-runs", () => {
+    const store = newStore();
+    store.create(
+      {
+        id: "outputs/video/old.mp4",
+        slotId: "2026-10-002",
+        title: "Old",
+        privacy: "unlisted",
+        youtubeVideoId: "OLDVID",
+        status: "COMPLETED",
+        error: null,
+      },
+      "2026-10-01T10:00:00.000Z",
+    );
+    store.create(
+      {
+        id: "outputs/video/new.mp4",
+        slotId: "2026-10-002",
+        title: "New",
+        privacy: "unlisted",
+        youtubeVideoId: "NEWVID",
+        status: "COMPLETED",
+        error: null,
+      },
+      "2026-10-01T12:00:00.000Z",
+    );
+
+    const got = store.getBySlot("2026-10-002");
+    expect(got?.id).toBe("outputs/video/new.mp4");
+    expect(got?.youtubeVideoId).toBe("NEWVID");
+  });
+
+  it("updates the privacy column in place", () => {
+    const store = newStore();
+    const key = "outputs/video/clip.mp4";
+    store.create({
+      id: key,
+      slotId: "s1",
+      title: "Test",
+      privacy: "unlisted",
+      youtubeVideoId: "VID123",
+      status: "COMPLETED",
+      error: null,
+    });
+    store.update(key, { privacy: "public" });
+    expect(store.get(key)?.privacy).toBe("public");
+  });
+
   it("records a failure with its error message", () => {
     const store = newStore();
     const key = "outputs/video/clip.mp4";

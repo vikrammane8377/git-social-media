@@ -32,6 +32,8 @@ export interface PlanRequest {
   cadence: Cadence;
   insights: CompetitorInsights;
   events: EventIdea[];
+  /** How many slots of each source the plan should aim for. */
+  targets: { eventSlots: number; competitorSlots: number };
 }
 
 const VALID_SOURCES: ReadonlySet<string> = new Set<SlotSource>(["event", "competitor", "evergreen"]);
@@ -46,10 +48,14 @@ function toStringArray(value: unknown): string[] {
 }
 
 /**
- * Builds a 30-day content plan by asking GPT-6 Astra to combine competitor
- * insights, the latest events scan, evergreen formats and the configured
- * cadence. The model's output is validated here: every slot must have a date
- * inside the window and a known source; anything else is dropped (no fake data).
+ * Builds a content plan by asking GPT-6 Astra to combine competitor insights,
+ * the latest events scan, evergreen formats and the configured cadence.
+ * Planning runs in two focused tracks (one LLM call each): an event track tied
+ * to upcoming dated events, and a trend-based competitor track. Each track owns
+ * one source, so attribution is guaranteed by construction. The model's output
+ * is validated here: every slot must have a date inside the window and a known
+ * source; anything else is dropped (no fake data). If the event track is short
+ * on supply, the competitor cap is raised to still reach the total.
  */
 export class OpenAiPlanGenerator {
   private readonly client: LlmClient;
@@ -65,10 +71,65 @@ export class OpenAiPlanGenerator {
   }
 
   async generate(request: PlanRequest): Promise<ContentPlan> {
+    const { targets, cadence } = request;
     const start = request.startDate;
-    const end = addDays(start, request.planDays - 1);
 
-    const prompt = this.buildPrompt(request, start, end);
+    // Widen the window so it can carry every post at the configured cadence.
+    // 60 posts @ 5/week -> 84 days. Never shrink below the requested planDays.
+    const total = targets.eventSlots + targets.competitorSlots;
+    const effectiveDays = Math.max(
+      request.planDays,
+      Math.ceil((total / cadence.postsPerWeek) * 7),
+    );
+    const end = addDays(start, effectiveDays - 1);
+
+    // Event track: only as many slots as the event supply (and target) allow.
+    const eventSlots = await this.runTrack(
+      this.buildEventPrompt(request, start, end, targets.eventSlots),
+      "event",
+      start,
+      end,
+      targets.eventSlots,
+    );
+
+    // Backfill: any event shortfall tops up the competitor cap so the plan
+    // still reaches the combined total.
+    const competitorCap = targets.competitorSlots + (targets.eventSlots - eventSlots.length);
+
+    // Competitor track: trend-based, not anchored to any dated event.
+    const competitorSlots = await this.runTrack(
+      this.buildCompetitorPrompt(request, start, end, competitorCap),
+      "competitor",
+      start,
+      end,
+      competitorCap,
+    );
+
+    const slots = [...eventSlots, ...competitorSlots];
+    slots.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+    return {
+      month: monthKey(start),
+      startDate: start,
+      endDate: end,
+      timezone: cadence.timezone,
+      slots,
+    };
+  }
+
+  /**
+   * Run one planning track: a single LLM call whose output is validated by
+   * {@link toSlot}, filtered to the expected source (defensive — the prompt
+   * already fixes it), re-stamped with that source, and capped. Forcing the
+   * source per track makes attribution deterministic regardless of model tags.
+   */
+  private async runTrack(
+    prompt: string,
+    expectedSource: SlotSource,
+    start: string,
+    end: string,
+    cap: number,
+  ): Promise<PlanSlot[]> {
     const response = await this.client.create({
       model: this.model,
       input: prompt,
@@ -79,17 +140,10 @@ export class OpenAiPlanGenerator {
     const slots: PlanSlot[] = [];
     for (const item of items) {
       const slot = this.toSlot(item, start, end);
-      if (slot) slots.push(slot);
+      if (!slot || slot.source !== expectedSource) continue;
+      slots.push({ ...slot, source: expectedSource });
     }
-    slots.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-
-    return {
-      month: monthKey(start),
-      startDate: start,
-      endDate: end,
-      timezone: request.cadence.timezone,
-      slots,
-    };
+    return slots.slice(0, Math.max(0, cap));
   }
 
   private toSlot(item: unknown, start: string, end: string): PlanSlot | null {
@@ -122,12 +176,61 @@ export class OpenAiPlanGenerator {
     };
   }
 
-  private buildPrompt(request: PlanRequest, start: string, end: string): string {
-    const { cadence, insights, events } = request;
+  /** Shared opening: brand voice, cadence, format mix, evergreen formats. */
+  private promptHeader(request: PlanRequest, start: string, end: string): string[] {
+    const { cadence } = request;
     const formatMix = Object.entries(cadence.formatMix)
       .map(([f, share]) => `  - ${f}: ${Math.round(share * 100)}%`)
       .join("\n");
 
+    return [
+      "You are the content planner for Bix Learn, a language app that teaches",
+      "English to Spanish speakers (audience: Bix Learn Español). Brand voice is",
+      "witty and mischievous. The CTA is to download / use the Bix Learn app.",
+      "",
+      `Plan window: ${start} to ${end} (inclusive).`,
+      `Cadence: about ${cadence.postsPerWeek} Shorts per week.`,
+      `Posting time: ${cadence.postingTime} (${cadence.timezone}).`,
+      "",
+      "Format mix (aim for roughly these shares; Responde a Bix is the largest):",
+      formatMix,
+      "",
+      "Evergreen formats always available:",
+      ...this.evergreenFormats.map((f) => `  - ${f}`),
+    ];
+  }
+
+  /** Shared closing: date-window rule, JSON-array-only contract, schema. */
+  private promptContract(start: string, end: string, source: SlotSource): string[] {
+    return [
+      "Rules:",
+      "- Do NOT copy competitor scripts or wording; use formats and structure only.",
+      "- Every slot's date MUST be between " + start + " and " + end + ".",
+      `- Every slot's source MUST be "${source}".`,
+      "- Keep the witty, mischievous voice in each hook.",
+      "",
+      "Return ONLY a JSON array (no prose) where each element is:",
+      "{",
+      '  "date": "YYYY-MM-DD",',
+      '  "time": "HH:MM",',
+      '  "format": string,',
+      `  "source": "${source}",`,
+      '  "topic": string,',
+      '  "brandFit": number,       // 0-10',
+      '  "hook": string,           // opening line in Bix\'s voice',
+      '  "why": string,            // why this is in the plan',
+      '  "assets": string[]        // assets the slot needs',
+      "}",
+    ];
+  }
+
+  /**
+   * Event track prompt: schedule up to `cap` Shorts, each tied to one upcoming
+   * event within its posting window. Insights are style guidance only, never
+   * slot sources. Never invent events.
+   */
+  private buildEventPrompt(request: PlanRequest, start: string, end: string, cap: number): string {
+    const { insights, events } = request;
     const eventLines =
       events.length > 0
         ? events.map(
@@ -137,19 +240,33 @@ export class OpenAiPlanGenerator {
         : ["  - (no upcoming events from the latest scan)"];
 
     return [
-      "You are the content planner for Bix Learn, a language app that teaches",
-      "English to Spanish speakers (audience: Bix Learn Español). Brand voice is",
-      "witty and mischievous. The CTA is to download / use the Bix Learn app.",
+      ...this.promptHeader(request, start, end),
       "",
-      `Build a content plan of Shorts from ${start} to ${end} (inclusive).`,
-      `Cadence: about ${cadence.postsPerWeek} Shorts per week.`,
-      `Posting time: ${cadence.postingTime} (${cadence.timezone}).`,
+      "Competitor insights (STYLE guidance only — never copy scripts, never a slot source):",
+      `  formats: ${insights.formats.join("; ") || "n/a"}`,
+      `  hooks: ${insights.hooks.join("; ") || "n/a"}`,
+      `  themes: ${insights.themes.join("; ") || "n/a"}`,
       "",
-      "Format mix (aim for roughly these shares; Responde a Bix is the largest):",
-      formatMix,
+      "Upcoming events from the latest events scan (schedule each within its window):",
+      ...eventLines,
       "",
-      "Evergreen formats always available:",
-      ...this.evergreenFormats.map((f) => `  - ${f}`),
+      `Schedule up to ${cap} Shorts, each tied to ONE upcoming event within its`,
+      "posting window. NEVER invent events — only use the events listed above.",
+      "Every slot's source is always \"event\".",
+      "",
+      ...this.promptContract(start, end, "event"),
+    ].join("\n");
+  }
+
+  /**
+   * Competitor track prompt: produce exactly `cap` trend-based Shorts inspired
+   * by the learned formats/hooks/themes, NOT tied to any calendar event. No
+   * events are listed so the model cannot anchor to one.
+   */
+  private buildCompetitorPrompt(request: PlanRequest, start: string, end: string, cap: number): string {
+    const { insights } = request;
+    return [
+      ...this.promptHeader(request, start, end),
       "",
       "Competitor insights (learned FORMATS/TRENDS only — never copy scripts):",
       `  formats: ${insights.formats.join("; ") || "n/a"}`,
@@ -159,28 +276,12 @@ export class OpenAiPlanGenerator {
       `  themes: ${insights.themes.join("; ") || "n/a"}`,
       `  ctas: ${insights.ctas.join("; ") || "n/a"}`,
       "",
-      "Upcoming events from the latest events scan (schedule each within its window):",
-      ...eventLines,
+      `Produce exactly ${cap} trend-based Shorts inspired by the learned`,
+      "formats/hooks/themes — NOT tied to any calendar event. Spread them across",
+      "the window on cadence days; avoid clustering. Every slot's source is",
+      'always "competitor". Do NOT copy competitor scripts.',
       "",
-      "Rules:",
-      "- Do NOT copy competitor scripts or wording; use formats and structure only.",
-      "- Event slots MUST fall within the event's posting window.",
-      "- Every slot's date MUST be between " + start + " and " + end + ".",
-      "- Mark each slot's source as one of: event, competitor, evergreen.",
-      "- Keep the witty, mischievous voice in each hook.",
-      "",
-      "Return ONLY a JSON array (no prose) where each element is:",
-      "{",
-      '  "date": "YYYY-MM-DD",',
-      '  "time": "HH:MM",',
-      '  "format": string,',
-      '  "source": "event" | "competitor" | "evergreen",',
-      '  "topic": string,',
-      '  "brandFit": number,       // 0-10',
-      '  "hook": string,           // opening line in Bix\'s voice',
-      '  "why": string,            // why this is in the plan',
-      '  "assets": string[]        // assets the slot needs',
-      "}",
+      ...this.promptContract(start, end, "competitor"),
     ].join("\n");
   }
 }

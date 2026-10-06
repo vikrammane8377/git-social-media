@@ -17,6 +17,7 @@ export {
   WAN3_MODEL_ID,
   WAN3_MIN_DURATION,
   WAN3_MAX_DURATION,
+  WAN_REFERENCE_ROLE,
 } from "./higgsfield-wan-provider.js";
 export { VideoJobStore, type VideoJobRecord, type JobStatus } from "./job-store.js";
 export { computeJobKey, type JobKeyInput } from "./job-key.js";

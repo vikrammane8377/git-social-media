@@ -58,4 +58,24 @@ describe("loadCompetitorConfig", () => {
     const config = loadCompetitorConfig(tempConfigDir(JSON.stringify({ reasoningEffort: "turbo" })));
     expect(config.reasoningEffort).toBe("medium");
   });
+
+  it("defaults targets to 30/30 when absent", () => {
+    const config = loadCompetitorConfig(tempConfigDir());
+    expect(config.targets).toEqual({ eventSlots: 30, competitorSlots: 30 });
+  });
+
+  it("parses custom targets", () => {
+    const config = loadCompetitorConfig(
+      tempConfigDir(JSON.stringify({ targets: { eventSlots: 10, competitorSlots: 50 } })),
+    );
+    expect(config.targets).toEqual({ eventSlots: 10, competitorSlots: 50 });
+  });
+
+  it("falls back per field on invalid/missing target values", () => {
+    const config = loadCompetitorConfig(
+      tempConfigDir(JSON.stringify({ targets: { eventSlots: 0, competitorSlots: 12.9 } })),
+    );
+    // eventSlots 0 is not a positive integer -> default 30; competitorSlots floored to 12
+    expect(config.targets).toEqual({ eventSlots: 30, competitorSlots: 12 });
+  });
 });

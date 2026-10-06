@@ -26,6 +26,16 @@ export const WAN3_MODEL_ID = "wan3_0";
 export const WAN3_MIN_DURATION = 2;
 export const WAN3_MAX_DURATION = 30;
 
+/**
+ * Role for the 2nd..Nth reference images when more than one is supplied. The
+ * first image is always the `start_image` (first frame); additional images are
+ * passed as extra references. UNVERIFIED: the exact role name Wan 3.0 expects
+ * for supplementary references has not been confirmed live against Higgsfield —
+ * verify with `models_explore(get, "wan3_0")` before relying on multi-image in
+ * production. The single-image path is unaffected by this constant.
+ */
+export const WAN_REFERENCE_ROLE = "reference_image";
+
 const MIME_BY_EXT: Readonly<Record<string, string>> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -128,9 +138,16 @@ export class HiggsfieldWanProvider implements VideoProvider {
   async submit(input: VideoJobInput): Promise<{ requestId: string }> {
     const mediaId = input.imageUrls[0];
     if (!mediaId) {
-      throw new Error("Wan 3.0 needs exactly one reference image (start_image).");
+      throw new Error("Wan 3.0 needs at least one reference image (start_image).");
     }
     const duration = toWanDuration(input.duration);
+
+    // First image is the first frame (start_image); any others are extra
+    // references. A single image yields exactly the previous payload.
+    const medias = input.imageUrls.map((value, i) => ({
+      value,
+      role: i === 0 ? "start_image" : WAN_REFERENCE_ROLE,
+    }));
 
     const params: Record<string, unknown> = {
       model: WAN3_MODEL_ID,
@@ -140,7 +157,7 @@ export class HiggsfieldWanProvider implements VideoProvider {
       resolution: input.resolution,
       generate_audio: input.generateAudio,
       use_unlim: false,
-      medias: [{ value: mediaId, role: "start_image" }],
+      medias,
     };
 
     // The server sometimes intercepts a prompt that resembles a built-in preset

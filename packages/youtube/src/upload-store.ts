@@ -73,6 +73,15 @@ export class YouTubeUploadStore {
     return row ? toRecord(row) : undefined;
   }
 
+  /** The newest upload for a slot (a slot can have several across re-runs). */
+  getBySlot(slotId: string): YouTubeUploadRecord | undefined {
+    const row = this.db.get<Row>(
+      "SELECT * FROM youtube_uploads WHERE slot_id = ? ORDER BY updated_at DESC LIMIT 1",
+      [slotId],
+    );
+    return row ? toRecord(row) : undefined;
+  }
+
   /** Insert or replace a record for a freshly-submitted upload. */
   create(
     record: Omit<YouTubeUploadRecord, "createdAt" | "updatedAt">,
@@ -100,7 +109,7 @@ export class YouTubeUploadStore {
   /** Patch mutable fields on an existing record and bump updated_at. */
   update(
     id: string,
-    patch: Partial<Pick<YouTubeUploadRecord, "youtubeVideoId" | "status" | "error">>,
+    patch: Partial<Pick<YouTubeUploadRecord, "youtubeVideoId" | "status" | "error" | "privacy">>,
     now: string = new Date().toISOString(),
   ): void {
     const sets: string[] = [];
@@ -108,6 +117,10 @@ export class YouTubeUploadStore {
     if ("youtubeVideoId" in patch) {
       sets.push("youtube_video_id = ?");
       params.push(patch.youtubeVideoId ?? null);
+    }
+    if ("privacy" in patch) {
+      sets.push("privacy = ?");
+      params.push(patch.privacy);
     }
     if ("status" in patch) {
       sets.push("status = ?");

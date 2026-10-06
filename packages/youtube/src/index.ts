@@ -12,6 +12,8 @@ export {
   type UploadRequest,
   type UploadResult,
   type UploaderDeps,
+  type ThumbnailImage,
+  type ChannelUpload,
 } from "./upload.js";
 export {
   slotToMetadata,

@@ -20,7 +20,7 @@ function bullets(label: string, items: string[]): string[] {
 
 /**
  * Render the scan as a readable Markdown report: what was collected, the learned
- * competitor insights (with the reach caveat), then the 30-day plan grouped by
+ * competitor insights (with the reach caveat), then the content plan grouped by
  * date. Written to outputs/plans/plan-YYYY-MM.md by the CLI.
  */
 export function renderPlanReport(result: CompetitorScanResult): string {
@@ -67,7 +67,9 @@ export function renderPlanReport(result: CompetitorScanResult): string {
   }
   lines.push("");
 
-  lines.push(`## 30-day plan (${plan.slots.length} slot(s))`);
+  const byEvent = plan.slots.filter((s) => s.source === "event").length;
+  const byComp = plan.slots.length - byEvent;
+  lines.push(`## Plan (${plan.slots.length} slot(s): ${byEvent} event, ${byComp} competitor)`);
   lines.push("");
   if (plan.slots.length === 0) {
     lines.push("_No slots were produced._");

@@ -257,6 +257,157 @@ the owner's Google Desktop OAuth client (see Keys) before the first live upload.
   upload use `--privacy unlisted` to confirm one real post before relying on the
   public default.
 
+**Component 4: Script writer + AI language reviewer** - built; unit-tested. Turns
+a stored content-plan slot into a spoken script and a generation-ready video
+prompt, gated by an AI reviewer BEFORE any video money is spent. Needs
+`OPENAI_API_KEY` (present).
+
+- New package `packages/scripts` (`@bix/scripts`), mirroring `@bix/competitors`
+  exactly: its own tiny `LlmClient` plumbing (`llm.ts`, copied so the package
+  stays low-coupled and testable), with the real SDK wired only at the edge in
+  `openai-client.ts` (`createSolClient`). Deps: `@bix/config`, `@bix/storage`,
+  `openai@^7.23.0`.
+- **GPT-5.6 Sol for both the writer and the reviewer** (per the owner's choice).
+  "medium mode" = `reasoning.effort: "medium"`. No web-search tool is used here.
+- The writer (`OpenAiScriptWriter`) turns one `plan_slots` slot (read via
+  `PlanSlotReader`, copied from `@bix/youtube`) into a `ScriptDraft` in Bix's
+  witty, mischievous voice: Spanish for LatAm + Spain teaching English, honouring
+  the slot's format/topic/hook/why. `revise(...)` re-prompts with the reviewer's
+  issues. Malformed JSON is handled (empty draft carrying the raw text) so a run
+  never crashes and the reviewer still gates it.
+- The reviewer (`OpenAiScriptReviewer`) applies the AI-language-reviewer spec
+  (teaching accuracy, false friends, locale, product claims, brand voice) and
+  returns a strict-JSON `ReviewResult`. The decision is exactly one of
+  **PASS / REVISE / NEEDS_EVIDENCE** — never "PASS WITH CHANGES". An unparseable
+  or unknown decision is treated as NEEDS_EVIDENCE (never an optimistic pass).
+- The run loop (`runScriptWriter`): write → review → while REVISE and under the
+  cap: revise → review again. **Auto-revises up to 2×** (configurable), then
+  stops. PASS is a success; REVISE-exhausted or NEEDS_EVIDENCE is reported as
+  not-ready (the CLI exits non-zero). `composeVideoPrompt` composes the exact
+  two-paragraph prompt `npm run video` expects (dialogue embedded for
+  wan/veo/kling; scene-only for avatar). The script is persisted to SQLite via
+  `ScriptStore` (`scripts` table, keyed by `slot_id`, INSERT OR REPLACE so reruns
+  never duplicate).
+- **This component spends OpenAI tokens ONLY.** It never calls a video provider,
+  so it cannot burn Higgsfield/FAL credits. On PASS it writes a drop-in prompt
+  file for `npm run video`; generation stays a separate, human-in-the-loop step.
+- CLI: `npm run script -- --slot <id>` (or `--date <YYYY-MM-DD>`, which errors if
+  a date is ambiguous). `--provider wan|avatar|veo|kling|seedance` (default from
+  config), `--max-revisions <n>` override. Writes
+  `outputs/scripts/script-<slotId>.md` (report) and, on PASS,
+  `outputs/scripts/prompt-<slotId>.md`; prints the exact `npm run video` command
+  to run next and the run's OpenAI cost.
+- Settings in `config/script-writer.json` (owner-editable): `model`,
+  `reasoningEffort`, `maxRevisions`, placeholder `pricing`, `video` defaults, and
+  the `productFacts` guardrails the reviewer enforces (no fluency-deadline /
+  guaranteed-results claims, no free/unlimited claims, "Talk with Bix" is Ultra,
+  no on-screen text/captions, vertical 9:16).
+- Tests: `prompt.test.ts`, `writer.test.ts`, `reviewer.test.ts`, `run.test.ts`
+  (PASS first try = 0 revisions; REVISE→PASS = 1; REVISE×3 stops at the cap and
+  reports not-ready), `store.test.ts`, `config.test.ts`, `plan-slot-reader.test.ts`.
+  Full suite green (135 tests).
+
+**Component 6: Orchestrator (one slot, end-to-end)** - built. Chains a single
+plan slot through script+review → generate → publish in one command. Pure glue
+over `@bix/scripts`, `@bix/video` and the shared `publishFile`; no new package.
+
+- Runs ONE slot at a time (`--slot <id>` or `--date`, ambiguous date errors).
+- **Phase 1 — script + review gate** (spends OpenAI tokens only): reuses
+  `runScriptWriter` exactly as `npm run script` does, writes
+  `outputs/scripts/script-<slotId>.md`, prints the decision + OpenAI cost.
+- **Gate:** if the reviewer does NOT PASS, it stops here — no video generated, no
+  credits spent — and exits non-zero (matching Component 4's money-gate).
+- **Phase 2 — generate** (spends video credits): on PASS it writes the drop-in
+  `outputs/scripts/prompt-<slotId>.md`, then generates via `VideoRunner` with the
+  chosen provider (default from config: Wan), the config's resolution/aspect/audio
+  and the draft's duration. Default `--ref` is `assets/bix_stand.png`. Resumable
+  through the same job store — rerun to resume an in-flight job.
+- **Phase 3 — publish**: uploads the finished MP4 to YouTube via `publishFile`
+  with **`--privacy unlisted` by default** and the AI-content disclosure on; the
+  owner flips to public manually. Idempotent (skips if already uploaded). If
+  generation succeeds but publish fails, it prints the exact
+  `npm run youtube -- upload ...` retry line and exits non-zero.
+- CLI: `npm run orchestrate -- --slot <id>` with `--provider`, `--ref` (repeatable),
+  `--privacy`, `--max-revisions`, `--help`. Requires `OPENAI_API_KEY`, the video
+  provider's login (Higgsfield for Wan) and `npm run youtube -- login`.
+- No new tests: the phases are already covered by `@bix/scripts`, `@bix/video`
+  and `@bix/youtube` unit suites; the command is thin sequencing over them.
+
+**Component 7: Pipeline dashboard (web frontend + API)** - built; unit-tested.
+A local-first web app to **see everything** in the pipeline and **trigger**
+per-slot actions, architected so it can be deployed later (auth + storage seams
+present now). Two new workspaces: a backend `@bix/server` and a Vite+React SPA
+`apps/web`.
+
+- New package `packages/server` (`@bix/server`): a **Hono** app (`@hono/node-server`,
+  `streamSSE` for live logs). Deps `@bix/config`, `@bix/storage`. Only `@bix/server`
+  joins the `tsc --build` graph; `apps/web` is built by Vite, kept out of the tsc
+  project references and the vitest include.
+- **Read layer** (`DashboardReader`, `src/read.ts`) queries the six existing tables
+  through the `Database` interface with **read-only SQL** — no changes to any existing
+  package or store. It loads `sqlite_master` first so a missing/partial table yields
+  empty results instead of throwing. The heart is `overview()`: one row per slot in
+  the latest plan, LEFT JOINed to its script decision (`scripts.slot_id = plan_slots.id`),
+  its upload (`youtube_uploads.slot_id = plan_slots.id`) and its video job
+  (`video_jobs.output_path = youtube_uploads.id`), plus a `youtu.be/<id>` link.
+- **Health** (`src/health.ts`): `envStatus` reuses `checkKeys()` (present/missing only,
+  values never returned); `oauthStatus` reports whether `data/youtube-tokens.json` /
+  `data/higgsfield-tokens.json` exist and parse and whether they are expired — so the
+  UI can show whether generate/publish will work before the user tries. No secret is
+  ever sent to the browser.
+- **Media** (`src/media.ts`): `readReport` whitelists `.md`/`.json` under `outputs/`;
+  `videoRange` serves MP4s (10-86 MB) with **HTTP range** (206 slice / 200 full / 416
+  unsatisfiable) so `<video>` can stream previews. Both are path-guarded through
+  `LocalFileStorage` (rejects anything outside `outputs/` or with `..`).
+- **Triggering reuses the exact CLI** (`JobManager`, `src/jobs.ts`): `start(kind,opts)`
+  spawns the CLI as a child process (dev: `npx tsx apps/cli/src/index.ts …`; prod:
+  `node apps/cli/dist/index.js …`), captures stdout/stderr line-by-line into the run's
+  log and pushes each line to SSE subscribers, then records SUCCEEDED/FAILED + exit code.
+  No pipeline logic is duplicated; process isolation + WAL keep it concurrency-safe.
+  `buildCliArgs` maps script→`script --slot`, generate→`video --provider wan --prompt-file …
+  --ref assets/bix_stand.png`, publish→`youtube upload --file … --slot … --privacy unlisted`,
+  orchestrate→`orchestrate --slot … --privacy unlisted`. `spawn` is injectable for tests.
+- **Runs are persisted** by `RunsStore` (`src/runs-store.ts`) in a new `runs` table
+  **owned by the server** (id, kind, slot_id, args_json, status, exit_code, log,
+  started_at, ended_at) — the only table this component writes.
+- **Spend guardrails** (server-side, in `src/app.ts`): `POST /api/runs` refuses any
+  spending kind (generate/publish/orchestrate) unless the body includes `confirm: true`
+  (400) AND the required OAuth token is present (409 "needs login" — higgsfield for
+  generate, youtube for publish, both for orchestrate). `script` (OpenAI-only) needs no
+  confirm. publish/orchestrate default privacy **unlisted**. The browser never holds
+  secrets; the server reads `.env`/tokens.
+- **Auth seam** (`src/auth.ts`): if `DASHBOARD_TOKEN` is set, `/api/*` requires
+  `Authorization: Bearer <token>` (401 otherwise); when unset it is a no-op, so local
+  dev is open. `startServer` (`src/server.ts`) opens `data/bix.db`, wires the reader/
+  media/jobs/runs, and in production also serves the built SPA from `apps/web/dist`
+  (single-origin, no proxy). `PORT`/`BIX_DB`/`BIX_ROOT` come from env.
+- API routes — reads (GET): `/api/health`, `/api/overview`, `/api/plans`,
+  `/api/plans/:month/slots`, `/api/slots/:id`, `/api/events`, `/api/events/scans`,
+  `/api/scripts/:slotId`, `/api/videos`, `/api/uploads`, `/api/report?key=`,
+  `/api/media/video?key=`. Triggers: `POST /api/runs`, `GET /api/runs`,
+  `GET /api/runs/:id`, `GET /api/runs/:id/stream` (SSE log + status).
+- `apps/web` (`@bix/web`, Vite + React + react-router-dom + react-markdown, plain
+  CSS dark theme). Pages: **Overview** (latest plan at a glance with decision/status
+  filters and YouTube links), **Slot detail** (slot fields, reviewer verdict, rendered
+  script/prompt markdown, `<video>` player, action buttons with confirm dialogs and a
+  live SSE log panel), **Events**, **Plans** (rendered plan markdown), **Health**
+  (env keys + OAuth login status), **Runs** (recent runs with expandable logs). Dev
+  proxies `/api` → `http://localhost:8787`; its tsconfig is standalone (Bundler
+  resolution) and not referenced by the root build.
+- Tests: `read.test.ts` (in-memory SQLite seeded across all six tables → `overview()`
+  join + every list/get; missing tables → empty), `media.test.ts` (range parsing +
+  path-guards), `runs-store.test.ts`, `jobs.test.ts` (fake `spawn`: line capture,
+  status transitions, spawn-error → FAILED), `app.test.ts` (`app.request()` smoke:
+  overview/health/404/report-guard, `POST /api/runs` confirm + missing-token refusals,
+  bearer-auth seam). Full suite green.
+- **Deploy follow-up (designed, not built): OAuth browser logins can't run headless.**
+  A cloud deployment needs a token-provisioning step — mount the owner's
+  `data/youtube-tokens.json` / `data/higgsfield-tokens.json` (or the equivalent secret)
+  into the server, or run the `login` commands on a machine with a browser and ship the
+  resulting token files. Set `DASHBOARD_TOKEN` to lock the API. The storage seam is
+  already in place (media/report reads go through `@bix/storage`), so a Cloud Storage
+  `FileStorage` can replace `LocalFileStorage` without touching route code.
+
 ## How to run
 
 - `npm install` - install dependencies.
@@ -311,6 +462,34 @@ the owner's Google Desktop OAuth client (see Keys) before the first live upload.
     `unlisted` for the first live test; `public` is the default.
 - `npm run video -- --provider wan --prompt-file ... --ref ... --publish --slot <id> --privacy unlisted`
   - Generates, then uploads in one pass. Requires `youtube -- login` first.
+- `npm run script -- --slot 2026-09-003`
+  - Writes a script for the plan slot and gates it with the AI reviewer. Requires
+    `OPENAI_API_KEY` in `.env`. **Spends OpenAI tokens only — no video credits.**
+  - Reads `config/script-writer.json` and the slot from SQLite (`plan_slots`).
+  - Prints the reviewer decision + revision count, writes
+    `outputs/scripts/script-<slotId>.md`, and on PASS writes
+    `outputs/scripts/prompt-<slotId>.md` and prints the exact `npm run video`
+    command to run next (which is the step that spends credits). Returns 0 on
+    PASS, non-zero otherwise. `--date` picks the slot by date (errors if
+    ambiguous); `--provider` / `--max-revisions` override the config defaults.
+- `npm run orchestrate -- --slot 2026-09-003`
+  - Runs the whole pipeline for one slot: script+review → (on PASS) generate →
+    publish to YouTube as **unlisted**. Requires `OPENAI_API_KEY`, the video
+    provider's login (Higgsfield for the default Wan) and `npm run youtube -- login`.
+  - If the reviewer does not PASS it stops after the script phase (no video, no
+    credits) and exits non-zero. `--provider`, `--ref`, `--privacy` and
+    `--max-revisions` override the defaults; `--date` picks the slot by date.
+- `npm run server` (API on port 8787) + `npm run web` (Vite dev server) - the
+  pipeline dashboard (Component 7). Open the SPA; it proxies `/api` to the server.
+  - **Overview** lists the latest plan; each slot shows its script decision, video
+    status and YouTube link. **Slot detail** plays the generated MP4 and renders the
+    script + reviewer verdict, with action buttons (script/generate/publish/orchestrate).
+  - Reads are open in local dev. Triggering a spending action needs `confirm` in the
+    request AND the relevant OAuth login (Higgsfield/YouTube); the server refuses
+    otherwise. **Health** shows which logins/keys are present.
+  - `npm run web:build` builds the SPA to `apps/web/dist`; in production
+    (`NODE_ENV=production`) `npm run server` serves it from the same origin. Set
+    `DASHBOARD_TOKEN` to require `Authorization: Bearer <token>` on `/api/*`.
 
 ## What is mocked / not built yet
 
@@ -337,7 +516,8 @@ Keys live only in `.env` (git-ignored) and are filled in by the owner.
 Reported by `npm run config:check` as present/missing:
 
 - `FAL_KEY` - Component 1. (present)
-- `OPENAI_API_KEY` - Components 2-3 (also powers web search). (present)
+- `OPENAI_API_KEY` - Components 2-4 (scans, planning, script writer + reviewer;
+  also powers web search). (present)
 - `YOUTUBE_API_KEY` - Component 3. (present)
 - `YOUTUBE_CLIENT_ID` - Component 5 (Desktop-app OAuth client id). (missing until set)
 - `YOUTUBE_CLIENT_SECRET` - Component 5 (paired client secret). (missing until set)
@@ -359,5 +539,33 @@ To improve Component 3's competitor sample (optional, when convenient):
    `config/competitor-scan.json` (only Busuu resolved on the first run).
 2. Re-run `npm run scan:competitors` to fold those channels into the insights.
 
-Then Component 4 (script writer + AI reviewer) - not started; waiting for
-go-ahead.
+Component 4 (script writer + AI reviewer) is **built and unit-tested**. To run it
+for real (spends OpenAI tokens only, no video credits):
+1. `npm run script -- --slot 2026-09-003` — writes the script, gates it with the
+   reviewer, and on PASS emits the drop-in prompt file for `npm run video`.
+2. Inspect `outputs/scripts/script-2026-09-003.md`; on PASS, generate with the
+   printed `npm run video` command (that is the step that spends credits).
+
+Component 6 (orchestrator) is **built**. To run it end-to-end for real:
+1. Ensure `npm run youtube -- login` has been done (needs the Google Desktop
+   OAuth creds in `.env`), and the Higgsfield login for the default Wan provider.
+2. `npm run orchestrate -- --slot 2026-09-003` — script+review, then on PASS
+   generate and publish the clip as unlisted; review it and flip to public.
+
+Remaining loose ends (optional):
+- Component 5's first live upload still needs `YOUTUBE_CLIENT_ID` /
+  `YOUTUBE_CLIENT_SECRET` in `.env` (currently missing) + `npm run youtube -- login`.
+- Confirm the three placeholder competitor handles (Component 3) to widen the
+  competitor sample.
+- A batch/scheduled orchestrator (run every due slot for a day/week) is a natural
+  follow-up to today's one-slot command.
+
+Component 7 (pipeline dashboard) is **built and unit-tested**, local-first. To run
+it: `npm run server` + `npm run web`, then open the SPA. To deploy it later:
+1. Provision OAuth tokens (browser login can't run headless) — mount the owner's
+   `data/*-tokens.json` (or a secret) into the server, or log in on a browser machine
+   and ship the token files.
+2. Set `DASHBOARD_TOKEN` to lock `/api/*`, run `npm run web:build`, and serve with
+   `NODE_ENV=production npm run server` (single origin). Swap `LocalFileStorage` for a
+   Cloud Storage `FileStorage` via the existing `@bix/storage` seam if media moves off
+   the local disk.

@@ -8,6 +8,9 @@
     { "path": "./packages/youtube" },
     { "path": "./packages/events" },
     { "path": "./packages/competitors" },
+    { "path": "./packages/scripts" },
+    { "path": "./packages/server" },
+    { "path": "./packages/captions" },
     { "path": "./apps/cli" }
   ]
 }

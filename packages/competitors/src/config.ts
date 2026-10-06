@@ -21,6 +21,8 @@ export interface CompetitorScanConfig {
   maxShortSeconds: number;
   /** Length of the plan in days. */
   planDays: number;
+  /** How many slots of each source the plan should aim for. */
+  targets: { eventSlots: number; competitorSlots: number };
   /** Posting cadence and format mix. */
   cadence: Cadence;
   /** Evergreen format ideas always available to the planner. */
@@ -44,6 +46,7 @@ export const DEFAULT_COMPETITOR_CONFIG: CompetitorScanConfig = {
   maxVideosPerChannel: 30,
   maxShortSeconds: 180,
   planDays: 30,
+  targets: { eventSlots: 30, competitorSlots: 30 },
   cadence: {
     postsPerWeek: 5,
     timezone: "America/Mexico_City",
@@ -132,6 +135,22 @@ function asCadence(value: unknown, fallback: Cadence): Cadence {
   };
 }
 
+function asTargets(
+  value: unknown,
+  fallback: { eventSlots: number; competitorSlots: number },
+): { eventSlots: number; competitorSlots: number } {
+  if (typeof value !== "object" || value === null) return fallback;
+  const r = value as Record<string, unknown>;
+  return {
+    eventSlots:
+      typeof r.eventSlots === "number" && r.eventSlots > 0 ? Math.floor(r.eventSlots) : fallback.eventSlots,
+    competitorSlots:
+      typeof r.competitorSlots === "number" && r.competitorSlots > 0
+        ? Math.floor(r.competitorSlots)
+        : fallback.competitorSlots,
+  };
+}
+
 /**
  * Load competitor-scan settings, falling back to defaults for any absent field.
  * Missing file = all defaults.
@@ -160,6 +179,7 @@ export function loadCompetitorConfig(configDir: string): CompetitorScanConfig {
     maxShortSeconds:
       typeof r.maxShortSeconds === "number" && r.maxShortSeconds > 0 ? Math.floor(r.maxShortSeconds) : d.maxShortSeconds,
     planDays: typeof r.planDays === "number" && r.planDays > 0 ? Math.floor(r.planDays) : d.planDays,
+    targets: asTargets(r.targets, d.targets),
     cadence: asCadence(r.cadence, d.cadence),
     evergreenFormats: asStringArray(r.evergreenFormats, d.evergreenFormats),
     pricing: asPricing(r.pricing, d.pricing),

@@ -20,8 +20,9 @@ function printUsage(): void {
   console.log("Usage: npm run scan:competitors");
   console.log("");
   console.log("Scans tracked competitor YouTube Shorts, learns formats/trends, and");
-  console.log("builds a 30-day content plan combining competitor insights, the latest");
-  console.log("events scan, evergreen formats and the configured cadence.");
+  console.log("builds a 60-slot content plan (30 event-driven + 30 competitor-driven,");
+  console.log("each row tagged) combining competitor insights, the latest events scan,");
+  console.log("evergreen formats and the configured cadence.");
   console.log("Requires OPENAI_API_KEY and YOUTUBE_API_KEY in .env.");
   console.log("Settings live in config/competitor-scan.json.");
 }
@@ -85,6 +86,7 @@ export async function runCompetitorsScan(argv: string[]): Promise<number> {
       maxVideosPerChannel: config.maxVideosPerChannel,
       maxShortSeconds: config.maxShortSeconds,
       planDays: config.planDays,
+      targets: config.targets,
       cadence: config.cadence,
       logger: (message) => console.log(message),
     });

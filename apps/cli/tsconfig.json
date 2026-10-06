@@ -11,7 +11,10 @@
     { "path": "../../packages/higgsfield" },
     { "path": "../../packages/youtube" },
     { "path": "../../packages/events" },
-    { "path": "../../packages/competitors" }
+    { "path": "../../packages/competitors" },
+    { "path": "../../packages/scripts" },
+    { "path": "../../packages/server" },
+    { "path": "../../packages/captions" }
   ],
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "dist"]

@@ -13,6 +13,9 @@
     "@bix/higgsfield": "*",
     "@bix/youtube": "*",
     "@bix/events": "*",
-    "@bix/competitors": "*"
+    "@bix/competitors": "*",
+    "@bix/scripts": "*",
+    "@bix/server": "*",
+    "@bix/captions": "*"
   }
 }

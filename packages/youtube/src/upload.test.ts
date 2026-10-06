@@ -99,4 +99,198 @@ describe("YouTubeUploader", () => {
       uploader.upload({ fileBytes: Buffer.from("x"), metadata }),
     ).rejects.toThrow(/500.*upload broke/);
   });
+
+  it("sets a custom thumbnail after the video upload when one is provided", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      if (calls.length === 1) {
+        return new Response(null, { status: 200, headers: { location: SESSION_URI } });
+      }
+      if (calls.length === 2) {
+        return new Response(JSON.stringify({ id: "VID123" }), { status: 201 });
+      }
+      // Phase 3: thumbnail set.
+      return new Response(JSON.stringify({ kind: "youtube#thumbnailSetResponse" }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const uploader = new YouTubeUploader({ getAccessToken: async () => "tok", fetch: fetchImpl });
+    const result = await uploader.upload({
+      fileBytes: Buffer.from("MP4DATA"),
+      metadata,
+      thumbnail: { bytes: Buffer.from("PNGBYTES"), mime: "image/png" },
+    });
+
+    expect(result).toEqual({ videoId: "VID123", url: "https://youtu.be/VID123" });
+    expect(calls).toHaveLength(3);
+    const thumb = calls[2];
+    expect(thumb.url).toBe(
+      "https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=VID123",
+    );
+    expect(thumb.init?.method).toBe("POST");
+    const headers = thumb.init?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer tok");
+    expect(headers["Content-Type"]).toBe("image/png");
+    expect(thumb.init?.body).toEqual(Buffer.from("PNGBYTES"));
+  });
+
+  it("updatePrivacy GETs the current status, merges privacy, and PUTs it back", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      if (!init || init.method === undefined || init.method === "GET") {
+        // GET part=status returns the existing, richer status resource.
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                status: {
+                  privacyStatus: "unlisted",
+                  selfDeclaredMadeForKids: false,
+                  license: "youtube",
+                  embeddable: true,
+                  publicStatsViewable: true,
+                  uploadStatus: "processed",
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ id: "VID123" }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const uploader = new YouTubeUploader({ getAccessToken: async () => "tok", fetch: fetchImpl });
+    await uploader.updatePrivacy("VID123", "public");
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0].url).toBe(
+      "https://www.googleapis.com/youtube/v3/videos?part=status&id=VID123",
+    );
+    const put = calls[1];
+    expect(put.url).toBe("https://www.googleapis.com/youtube/v3/videos?part=status");
+    expect(put.init?.method).toBe("PUT");
+    const headers = put.init?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer tok");
+    const body = JSON.parse(put.init?.body as string);
+    expect(body.id).toBe("VID123");
+    expect(body.status.privacyStatus).toBe("public");
+    // Preserved mutable fields; read-only uploadStatus is dropped.
+    expect(body.status.selfDeclaredMadeForKids).toBe(false);
+    expect(body.status.license).toBe("youtube");
+    expect(body.status.embeddable).toBe(true);
+    expect(body.status.publicStatsViewable).toBe(true);
+    expect(body.status.uploadStatus).toBeUndefined();
+  });
+
+  it("updatePrivacy throws when the video id is not found", async () => {
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({ items: [] }), { status: 200 })) as unknown as typeof fetch;
+    const uploader = new YouTubeUploader({ getAccessToken: async () => "t", fetch: fetchImpl });
+    await expect(uploader.updatePrivacy("MISSING", "public")).rejects.toThrow(/no video with id/);
+  });
+
+  it("updatePrivacy surfaces a scope/permission error from the PUT", async () => {
+    const fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
+      if (!init || init.method === undefined || init.method === "GET") {
+        return new Response(
+          JSON.stringify({ items: [{ status: { privacyStatus: "unlisted" } }] }),
+          { status: 200 },
+        );
+      }
+      return new Response('{"error":{"message":"insufficient scope"}}', { status: 403 });
+    }) as unknown as typeof fetch;
+    const uploader = new YouTubeUploader({ getAccessToken: async () => "t", fetch: fetchImpl });
+    await expect(uploader.updatePrivacy("VID", "public")).rejects.toThrow(/403.*insufficient scope/);
+  });
+
+  it("listRecentUploads resolves the uploads playlist and maps its items", async () => {
+    const calls: string[] = [];
+    const fetchImpl = (async (url: string | URL | Request) => {
+      const u = String(url);
+      calls.push(u);
+      if (u.includes("/channels")) {
+        return new Response(
+          JSON.stringify({
+            items: [{ contentDetails: { relatedPlaylists: { uploads: "UU_PLAYLIST" } } }],
+          }),
+          { status: 200 },
+        );
+      }
+      // playlistItems
+      return new Response(
+        JSON.stringify({
+          items: [
+            {
+              snippet: {
+                title: "Newest",
+                publishedAt: "2026-10-01T13:00:00Z",
+                resourceId: { videoId: "VNEW" },
+              },
+              status: { privacyStatus: "unlisted" },
+            },
+            {
+              // An item without a videoId is skipped.
+              snippet: { title: "Broken", publishedAt: "2026-10-01T12:00:00Z" },
+              status: { privacyStatus: "public" },
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+
+    const uploader = new YouTubeUploader({ getAccessToken: async () => "tok", fetch: fetchImpl });
+    const uploads = await uploader.listRecentUploads();
+
+    expect(uploads).toEqual([
+      {
+        videoId: "VNEW",
+        title: "Newest",
+        publishedAt: "2026-10-01T13:00:00Z",
+        privacy: "unlisted",
+      },
+    ]);
+    expect(calls[0]).toContain("/channels");
+    expect(calls[1]).toContain("playlistId=UU_PLAYLIST");
+  });
+
+  it("listRecentUploads surfaces a scope error (youtube.upload-only token)", async () => {
+    const fetchImpl = (async () =>
+      new Response('{"error":{"message":"insufficient scope"}}', {
+        status: 403,
+      })) as unknown as typeof fetch;
+    const uploader = new YouTubeUploader({ getAccessToken: async () => "t", fetch: fetchImpl });
+    await expect(uploader.listRecentUploads()).rejects.toThrow(/403.*insufficient scope/);
+  });
+
+  it("still returns the video URL when the thumbnail set fails (non-fatal)", async () => {
+    const warnings: string[] = [];
+    const fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "PUT") {
+        return new Response(JSON.stringify({ id: "VID777" }), { status: 201 });
+      }
+      // The initiate call has a JSON string body; the thumbnail call has bytes.
+      if (typeof init?.body === "string") {
+        return new Response(null, { status: 200, headers: { location: SESSION_URI } });
+      }
+      // Thumbnail set fails (e.g. channel not eligible).
+      return new Response("not eligible for custom thumbnails", { status: 403 });
+    }) as unknown as typeof fetch;
+
+    const uploader = new YouTubeUploader({
+      getAccessToken: async () => "t",
+      fetch: fetchImpl,
+      logger: (m) => warnings.push(m),
+    });
+    const result = await uploader.upload({
+      fileBytes: Buffer.from("x"),
+      metadata,
+      thumbnail: { bytes: Buffer.from("img"), mime: "image/png" },
+    });
+
+    expect(result).toEqual({ videoId: "VID777", url: "https://youtu.be/VID777" });
+    expect(warnings.some((w) => /Thumbnail not set/.test(w))).toBe(true);
+  });
 });

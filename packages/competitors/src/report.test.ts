@@ -53,6 +53,8 @@ describe("renderPlanReport", () => {
   it("renders channels, the reach caveat, insights and slots", () => {
     const md = renderPlanReport(result());
     expect(md).toContain("# Content plan — 2026-10");
+    // Dynamic plan header reflects per-source counts (1 event, 0 competitor).
+    expect(md).toContain("## Plan (1 slot(s): 1 event, 0 competitor)");
     expect(md).toContain("Duolingo Spanish");
     expect(md).toContain("organic vs paid");
     expect(md).toContain("Responde a Bix");

@@ -11,6 +11,7 @@
   "maxVideosPerChannel": 30,
   "maxShortSeconds": 180,
   "planDays": 30,
+  "targets": { "eventSlots": 30, "competitorSlots": 30 },
   "cadence": {
     "postsPerWeek": 5,
     "timezone": "America/Mexico_City",

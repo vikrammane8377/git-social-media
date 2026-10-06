@@ -1,0 +1,27 @@
+{
+  "model": "gpt-5.6-sol",
+  "reasoningEffort": "medium",
+  "maxRevisions": 2,
+  "pricing": { "inputPerMillion": 10, "outputPerMillion": 50 },
+  "video": {
+    "resolution": "720p",
+    "aspectRatio": "9:16",
+    "durationSeconds": 28,
+    "generateAudio": true,
+    "provider": "wan"
+  },
+  "captions": {
+    "enabled": true,
+    "sourceLang": "auto"
+  },
+  "productFacts": [
+    "Do not promise fluency deadlines (e.g. \"fluent in 7 days\") or guaranteed results; use accurate, practice-focused wording instead.",
+    "Do not claim free or unlimited access. \"Talk with Bix\" is an Ultra feature; do not infer free or unlimited conversations.",
+    "The CTA is to download / use the Bix Learn app; the requested action and destination must be consistent.",
+    "No on-screen text, captions, signs or subtitles in the scene — the clip is spoken only.",
+    "Vertical 9:16 Short; keep the scene mobile-first and vertical.",
+    "Brand voice is witty and mischievous; preserve the joke while keeping the actual lesson correct.",
+    "Respect the locale: distinguish Spain and Latin American Spanish variants; do not label a valid regional form an error.",
+    "Teach natural target-language usage; never teach a literal word-for-word translation as natural (watch false friends)."
+  ]
+}

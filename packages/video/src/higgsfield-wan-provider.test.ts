@@ -62,6 +62,21 @@ describe("HiggsfieldWanProvider.submit", () => {
     });
   });
 
+  it("maps every reference image to a media: start_image then reference_image", async () => {
+    callTool.mockResolvedValueOnce(jobEnvelope("job-multi"));
+    const provider = new HiggsfieldWanProvider();
+
+    await provider.submit({ ...baseInput, imageUrls: ["media-1", "media-2", "media-3"] });
+
+    const [, args] = callTool.mock.calls[0];
+    const params = (args as { params: { medias: Array<{ value: string; role: string }> } }).params;
+    expect(params.medias).toEqual([
+      { value: "media-1", role: "start_image" },
+      { value: "media-2", role: "reference_image" },
+      { value: "media-3", role: "reference_image" },
+    ]);
+  });
+
   it("declines a preset recommendation and retries literally", async () => {
     callTool
       .mockResolvedValueOnce(presetEnvelope("preset-xyz"))
