@@ -44,7 +44,7 @@ describe("buildCliArgs", () => {
       "--slot",
       "s1",
       "--privacy",
-      "unlisted",
+      "public",
     ]);
     expect(buildCliArgs("orchestrate", { slotId: "s1", privacy: "private" })).toEqual([
       "orchestrate",

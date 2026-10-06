@@ -7,9 +7,9 @@ import { Chip, ErrorMsg, Loading, useAsync } from "../ui";
 const SPEND: Record<RunKind, string> = {
   script: "Spends OpenAI tokens only (no video credits, no publish).",
   generate: "Spends video credits to render the MP4 (needs provider login).",
-  publish: "Uploads the finished MP4 to YouTube (unlisted) — needs YouTube login.",
+  publish: "Uploads the finished MP4 to YouTube (public) — needs YouTube login.",
   orchestrate:
-    "Runs script → generate → publish end-to-end. Spends OpenAI tokens AND video credits, then publishes (unlisted).",
+    "Runs script → generate → publish end-to-end. Spends OpenAI tokens AND video credits, then publishes (public).",
 };
 
 export function SlotDetail() {

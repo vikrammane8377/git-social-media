@@ -80,14 +80,14 @@ export function buildCliArgs(kind: RunKind, opts: StartOptions): string[] {
       const args = ["youtube", "upload"];
       if (opts.file) args.push("--file", opts.file);
       if (opts.slotId) args.push("--slot", opts.slotId);
-      args.push("--privacy", opts.privacy ?? "unlisted");
+      args.push("--privacy", opts.privacy ?? "public");
       return args;
     }
     case "orchestrate": {
       const args = ["orchestrate"];
       if (opts.slotId) args.push("--slot", opts.slotId);
       if (opts.provider) args.push("--provider", opts.provider);
-      args.push("--privacy", opts.privacy ?? "unlisted");
+      args.push("--privacy", opts.privacy ?? "public");
       if (opts.maxRevisions != null) args.push("--max-revisions", String(opts.maxRevisions));
       // Only forward explicit refs when provided; otherwise the CLI writes the
       // script fresh and auto-selects assets itself (or falls back to default).
