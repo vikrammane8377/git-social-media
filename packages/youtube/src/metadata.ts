@@ -1,8 +1,11 @@
 /**
  * Maps a content-plan slot to YouTube video metadata (snippet + status fields),
- * applying YouTube's length limits and sensible defaults. Callers may override
- * any field from the CLI.
+ * applying YouTube's length limits and sensible defaults. The slot's channel
+ * supplies the description footer, category and default tags (so Spanish and
+ * Global videos are labelled in their own voice), and callers may still
+ * override any field from the CLI.
  */
+import type { ChannelMetadata } from "@bix/config";
 
 /** YouTube's documented limits for the fields we set. */
 const TITLE_MAX = 100;
@@ -12,7 +15,10 @@ const TAGS_TOTAL_MAX = 500;
 /** Default category id "27" = Education (from YouTube's videoCategories list). */
 export const DEFAULT_CATEGORY_ID = "27";
 
-/** A standard footer appended to auto-built descriptions. */
+/**
+ * Fallback footer used only when no channel metadata is supplied (e.g. a bare
+ * `slotToMetadata(slot)` call in tests). Real runs pass the channel footer.
+ */
 const DESCRIPTION_FOOTER =
   "—\nCreado por Bix · contenido educativo generado con ayuda de IA.";
 
@@ -84,7 +90,9 @@ function topicWords(topic: string): string[] {
 export function slotToMetadata(
   slot: MetadataSlot,
   overrides: MetadataOverrides = {},
+  channel?: ChannelMetadata,
 ): VideoMetadata {
+  const footer = channel?.descriptionFooter ?? DESCRIPTION_FOOTER;
   const title = clamp((overrides.title ?? (slot.hook || slot.topic)).trim(), TITLE_MAX);
 
   let description: string;
@@ -95,19 +103,26 @@ export function slotToMetadata(
       .map((p) => p.trim())
       .filter((p) => p.length > 0)
       .join("\n\n");
-    description = body.length > 0 ? `${body}\n\n${DESCRIPTION_FOOTER}` : DESCRIPTION_FOOTER;
+    description = body.length > 0 ? `${body}\n\n${footer}` : footer;
   }
   description = clamp(description, DESCRIPTION_MAX);
 
+  // The channel's default tags lead (brand/audience terms), then the slot's own
+  // format/source/topic words; clampTags de-dupes and honours YouTube's budget.
   const tags = clampTags(
-    overrides.tags ?? [slot.format, slot.source, ...topicWords(slot.topic)],
+    overrides.tags ?? [
+      ...(channel?.defaultTags ?? []),
+      slot.format,
+      slot.source,
+      ...topicWords(slot.topic),
+    ],
   );
 
   return {
     title,
     description,
     tags,
-    categoryId: overrides.categoryId ?? DEFAULT_CATEGORY_ID,
+    categoryId: overrides.categoryId ?? channel?.categoryId ?? DEFAULT_CATEGORY_ID,
     privacyStatus: overrides.privacyStatus ?? "public",
     containsSyntheticMedia: overrides.containsSyntheticMedia ?? true,
   };

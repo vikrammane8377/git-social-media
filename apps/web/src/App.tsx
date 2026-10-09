@@ -6,6 +6,7 @@ import { Plans } from "./pages/Plans";
 import { Health } from "./pages/Health";
 import { Runs } from "./pages/Runs";
 import { Assets } from "./pages/Assets";
+import { Settings } from "./pages/Settings";
 
 const NAV = [
   { to: "/", label: "Overview", end: true },
@@ -13,6 +14,7 @@ const NAV = [
   { to: "/plans", label: "Plans", end: false },
   { to: "/assets", label: "Assets", end: false },
   { to: "/runs", label: "Runs", end: false },
+  { to: "/settings", label: "Settings", end: false },
   { to: "/health", label: "Health", end: false },
 ];
 
@@ -42,6 +44,7 @@ export function App() {
           <Route path="/plans" element={<Plans />} />
           <Route path="/assets" element={<Assets />} />
           <Route path="/runs" element={<Runs />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="/health" element={<Health />} />
         </Routes>
       </main>

@@ -65,41 +65,58 @@ describe("runCompetitorScan", () => {
           return emptyInsights;
         },
       },
-      planner: {
-        async generate(request): Promise<ContentPlan> {
-          captured.request = request;
-          return {
-            month: "2026-09",
-            startDate: "2026-09-29",
-            endDate: "2026-12-21",
-            timezone: cadence.timezone,
-            slots: [
-              {
-                date: "2026-09-30",
-                time: "09:00",
-                format: "Responde a Bix",
-                source: "event",
-                topic: "t",
-                brandFit: 8,
-                hook: "h",
-                why: "w",
-                assets: [],
-              },
-              {
-                date: "2026-10-05",
-                time: "09:00",
-                format: "Responde a Bix",
-                source: "competitor",
-                topic: "t2",
-                brandFit: 7,
-                hook: "h",
-                why: "w",
-                assets: [],
-              },
-            ],
-          };
+      // One planner per enabled channel; the scan merges their slots.
+      planners: [
+        {
+          async generate(request): Promise<ContentPlan> {
+            captured.request = request;
+            return {
+              month: "2026-09",
+              startDate: "2026-09-29",
+              endDate: "2026-12-21",
+              timezone: cadence.timezone,
+              slots: [
+                {
+                  date: "2026-09-30",
+                  time: "09:00",
+                  channel: "spanish",
+                  format: "Responde a Bix",
+                  source: "event",
+                  topic: "t",
+                  brandFit: 8,
+                  hook: "h",
+                  why: "w",
+                  assets: [],
+                },
+              ],
+            };
+          },
         },
-      },
+        {
+          async generate(): Promise<ContentPlan> {
+            return {
+              month: "2026-09",
+              startDate: "2026-09-29",
+              endDate: "2026-12-21",
+              timezone: cadence.timezone,
+              slots: [
+                {
+                  date: "2026-09-30",
+                  time: "18:00",
+                  channel: "global",
+                  format: "Responde a Bix",
+                  source: "competitor",
+                  topic: "t2",
+                  brandFit: 7,
+                  hook: "h",
+                  why: "w",
+                  assets: [],
+                },
+              ],
+            };
+          },
+        },
+      ],
       events,
       channels: [
         { name: "Good", handle: "@good", weight: 1 },
@@ -122,11 +139,15 @@ describe("runCompetitorScan", () => {
     expect(result.plan.slots).toHaveLength(2);
     expect(result.date).toBe("2026-09-29");
 
+    // Both channels' slots are merged; same-day slots order by channel (global < spanish).
+    expect(result.plan.slots.map((s) => s.channel)).toEqual(["global", "spanish"]);
+
     // Planner received the targets.
     expect(captured.request?.targets).toEqual({ eventSlots: 30, competitorSlots: 30 });
 
-    // Breakdown log emitted + shortfall warning (only 1 event vs target 30).
+    // Breakdown log emitted across both channels.
+    expect(logs.some((l) => l.includes("Building plans for 2 channel(s)"))).toBe(true);
     expect(logs.some((l) => l.includes("1 event, 1 competitor"))).toBe(true);
-    expect(logs.some((l) => l.includes("backfilled with competitor slots"))).toBe(true);
+    expect(logs.some((l) => l.includes("across 2 channel(s)"))).toBe(true);
   });
 });

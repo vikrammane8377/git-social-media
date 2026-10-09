@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import { loadEnv, requireKey } from "@bix/config";
+import { loadEnv, requireKey, getChannel, isChannelId, type ChannelConfig } from "@bix/config";
 import { SqliteDatabase, LocalFileStorage } from "@bix/storage";
 import {
   PlanSlotReader,
@@ -135,19 +135,23 @@ async function runScriptPhase(
   provider: string,
   maxRevisions: number,
   config: ReturnType<typeof loadScriptWriterConfig>,
+  channel: ChannelConfig,
   sol: UsageTrackingClient,
 ): Promise<ScriptResult> {
   const writer = new OpenAiScriptWriter({
     client: sol,
     model: config.model,
     reasoningEffort: config.reasoningEffort,
-    productFacts: config.productFacts,
+    writerPersona: channel.writerPersona,
+    productFacts: channel.productFacts,
   });
   const reviewer = new OpenAiScriptReviewer({
     client: sol,
     model: config.model,
     reasoningEffort: config.reasoningEffort,
-    productFacts: config.productFacts,
+    channelBrief: channel.writerPersona,
+    primaryLanguage: channel.primaryLanguage,
+    productFacts: channel.productFacts,
   });
 
   const db = new SqliteDatabase("data/bix.db");
@@ -167,6 +171,22 @@ async function runScriptPhase(
       slotId,
       logger: (message) => console.log(message),
     });
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Resolve the posting channel for a slot from its stored `channel` column.
+ * Older rows (pre-migration) read back as "spanish". The channel drives the
+ * writer/reviewer persona, the upload token, and the video metadata.
+ */
+function resolveChannel(slotId: string, configDir: string): ChannelConfig {
+  const db = new SqliteDatabase("data/bix.db");
+  try {
+    const record = new PlanSlotReader(db).getById(slotId);
+    const id = record && isChannelId(record.channel) ? record.channel : "spanish";
+    return getChannel(id, configDir);
   } finally {
     db.close();
   }
@@ -354,12 +374,15 @@ export async function runOrchestrate(argv: string[]): Promise<number> {
   const maxRevisions = args.maxRevisions ?? config.maxRevisions;
 
   let slotId: string;
+  let channel: ChannelConfig;
   try {
     slotId = resolveSlotId(args);
+    channel = resolveChannel(slotId, configDir);
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     return 1;
   }
+  console.log(`Channel: ${channel.label} (${channel.id})`);
 
   const fileStorage = new LocalFileStorage(process.cwd());
   const sol = new UsageTrackingClient(createSolClient(openaiKey));
@@ -367,7 +390,7 @@ export async function runOrchestrate(argv: string[]): Promise<number> {
   // ---- Phase 1: script + review gate --------------------------------------
   let result: ScriptResult;
   try {
-    result = await runScriptPhase(slotId, providerName, maxRevisions, config, sol);
+    result = await runScriptPhase(slotId, providerName, maxRevisions, config, channel, sol);
   } catch (err) {
     console.error("");
     console.error(`Script phase failed: ${err instanceof Error ? err.message : String(err)}`);

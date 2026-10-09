@@ -10,6 +10,7 @@ export interface PlanSlotRecord {
   month: string;
   date: string;
   time: string;
+  channel: string;
   format: string;
   source: string;
   topic: string;
@@ -24,6 +25,7 @@ interface PlanSlotRow {
   month: string;
   slot_date: string;
   slot_time: string;
+  channel: string | null;
   format: string;
   source: string;
   topic: string;
@@ -50,6 +52,7 @@ function toRecord(row: PlanSlotRow): PlanSlotRecord {
     month: row.month,
     date: row.slot_date,
     time: row.slot_time,
+    channel: row.channel ?? "spanish",
     format: row.format,
     source: row.source,
     topic: row.topic,

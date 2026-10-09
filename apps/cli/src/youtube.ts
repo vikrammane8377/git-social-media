@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { loadEnv } from "@bix/config";
+import { loadEnv, getChannel, isChannelId, type ChannelId } from "@bix/config";
 import { SqliteDatabase, LocalFileStorage, type Database } from "@bix/storage";
 import {
   startLogin,
@@ -12,7 +12,6 @@ import {
   YouTubeUploadStore,
   PlanSlotReader,
   slotToMetadata,
-  DEFAULT_CATEGORY_ID,
   type PlanSlotRecord,
   type MetadataOverrides,
   type ThumbnailImage,
@@ -30,6 +29,10 @@ function printUsage(): void {
   console.log("  upload  Upload a generated MP4 using metadata from a plan slot");
   console.log("  update  Change an already-uploaded video's privacy (public/unlisted/private)");
   console.log("");
+  console.log("login / status options:");
+  console.log("  --channel <id>               spanish | global (default spanish); logins are");
+  console.log("                               stored per channel (data/youtube-tokens.<id>.json)");
+  console.log("");
   console.log("upload options:");
   console.log("  --file <mp4>                 The video to upload (required; inside the project)");
   console.log("  --slot <id>                  Plan slot id supplying the metadata");
@@ -46,6 +49,8 @@ function printUsage(): void {
   console.log("  --video <youtubeId>          Flip this YouTube video id directly");
   console.log("  --file <mp4>                 Flip the upload recorded for this file");
   console.log("  --privacy <val>              public | unlisted | private (required)");
+  console.log("  --channel <id>               spanish | global — which login to use (default:");
+  console.log("                               derived from the slot, else spanish)");
   console.log("");
   console.log("  Note: `update` needs the broader `youtube` scope — if it fails with a");
   console.log("  permission/scope error, re-run `npm run youtube -- login` once.");
@@ -54,6 +59,21 @@ function printUsage(): void {
 /** Today's date as YYYY-MM-DD (local), used when --date is omitted. */
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Read `--channel <id>` from an argv tail, defaulting to spanish and validating
+ * the id. Used by the login/status subcommands, which are not slot-bound.
+ */
+function parseChannel(argv: string[]): ChannelId {
+  const i = argv.indexOf("--channel");
+  if (i === -1) return "spanish";
+  const value = argv[i + 1];
+  if (value === undefined) throw new Error("Missing value for --channel");
+  if (!isChannelId(value)) {
+    throw new Error(`Invalid --channel: ${value} (use spanish or global).`);
+  }
+  return value;
 }
 
 /** Resolve the single plan slot to use, or throw a helpful error. */
@@ -194,7 +214,13 @@ export async function publishFile(opts: PublishOptions): Promise<PublishOutcome>
     }
 
     const slot = resolveSlot(db, opts.slotId, opts.date);
-    const uploader = opts.uploader ?? new YouTubeUploader();
+
+    // The slot's channel drives both the metadata voice (footer/category/tags)
+    // and which stored OAuth token the upload uses; older rows without a valid
+    // channel fall back to the Spanish defaults.
+    const channelId = isChannelId(slot.channel) ? slot.channel : "spanish";
+    const channel = getChannel(channelId, resolve(process.cwd(), "config"));
+    const uploader = opts.uploader ?? new YouTubeUploader({ channel: channelId });
 
     // Self-heal an interrupted earlier run: if the newest upload for this slot
     // is a stranded SUBMITTED row (the process died after YouTube accepted the
@@ -219,7 +245,7 @@ export async function publishFile(opts: PublishOptions): Promise<PublishOutcome>
       privacyStatus: opts.privacy,
       containsSyntheticMedia: opts.syntheticDisclosure,
     };
-    const metadata = slotToMetadata(slot, overrides);
+    const metadata = slotToMetadata(slot, overrides, channel.metadata);
 
     const fileStorage = new LocalFileStorage(process.cwd());
     if (!fileStorage.exists(opts.storageKey)) {
@@ -268,8 +294,12 @@ export async function publishFile(opts: PublishOptions): Promise<PublishOutcome>
   }
 }
 
-async function runLogin(): Promise<number> {
-  const handle = await startLogin();
+async function runLogin(channel: ChannelId): Promise<number> {
+  const label = getChannel(channel, resolve(process.cwd(), "config")).label;
+  const handle = await startLogin(channel);
+  console.log("");
+  console.log(`Signing in the "${label}" channel (${channel}).`);
+  console.log("At the Google account chooser, pick the Brand Account for THIS channel.");
   console.log("");
   console.log("Opening your browser to sign in to YouTube (Google). If it doesn't open,");
   console.log("paste this URL manually:");
@@ -293,10 +323,11 @@ async function runLogin(): Promise<number> {
   return 0;
 }
 
-async function runStatus(): Promise<number> {
-  const tokens = await load();
+async function runStatus(channel: ChannelId): Promise<number> {
+  console.log(`Channel token: ${channel} (data/youtube-tokens.${channel}.json)`);
+  const tokens = await load(channel);
   if (!tokens) {
-    console.log("Not signed in. Run: npm run youtube -- login");
+    console.log(`Not signed in for ${channel}. Run: npm run youtube -- login --channel ${channel}`);
     return 0;
   }
   const mins = Math.round((tokens.expiresAt - Date.now()) / 60000);
@@ -308,7 +339,7 @@ async function runStatus(): Promise<number> {
   // Report which channel this token actually controls, so a fresh login can be
   // confirmed to target the intended channel before anything is published.
   try {
-    const accessToken = await getAccessToken();
+    const accessToken = await getAccessToken(channel);
     const res = await fetch(
       "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true",
       { headers: { authorization: `Bearer ${accessToken}` } },
@@ -430,7 +461,9 @@ async function runUpload(argv: string[]): Promise<number> {
     title: args.title,
     descriptionFile: args.descriptionFile,
     tags: args.tags,
-    categoryId: args.category ?? DEFAULT_CATEGORY_ID,
+    // Leave undefined when the user didn't pass --category so the slot's channel
+    // category applies; an explicit flag still wins.
+    categoryId: args.category,
     syntheticDisclosure: args.syntheticDisclosure,
   });
 
@@ -445,6 +478,7 @@ interface UpdateArgs {
   video?: string;
   file?: string;
   privacy?: string;
+  channel?: ChannelId;
 }
 
 function parseUpdateArgs(argv: string[]): UpdateArgs {
@@ -472,6 +506,14 @@ function parseUpdateArgs(argv: string[]): UpdateArgs {
           throw new Error(`Invalid --privacy: ${v} (use public, unlisted or private).`);
         }
         args.privacy = v;
+        break;
+      }
+      case "--channel": {
+        const v = next();
+        if (!isChannelId(v)) {
+          throw new Error(`Invalid --channel: ${v} (use spanish or global).`);
+        }
+        args.channel = v;
         break;
       }
       default:
@@ -518,6 +560,7 @@ async function runUpdate(argv: string[]): Promise<number> {
     // Resolve the target YouTube video id and the DB record to keep in sync.
     let videoId: string | undefined;
     let recordId: string | undefined;
+    let slotId: string | undefined;
     if (args.video) {
       videoId = args.video;
       recordId = undefined;
@@ -539,10 +582,20 @@ async function runUpdate(argv: string[]): Promise<number> {
       }
       videoId = record.youtubeVideoId;
       recordId = record.id;
+      slotId = record.slotId;
     }
 
-    const uploader = new YouTubeUploader();
-    console.log(`Setting video ${videoId} to ${args.privacy}...`);
+    // Flipping privacy must use the token of the channel that owns the video.
+    // An explicit --channel wins; otherwise derive it from the upload's plan
+    // slot when known; fall back to spanish.
+    let channelId: ChannelId = args.channel ?? "spanish";
+    if (!args.channel && slotId) {
+      const slot = new PlanSlotReader(db).getById(slotId);
+      if (slot && isChannelId(slot.channel)) channelId = slot.channel;
+    }
+
+    const uploader = new YouTubeUploader({ channel: channelId });
+    console.log(`Setting video ${videoId} to ${args.privacy} (channel: ${channelId})...`);
     await uploader.updatePrivacy(videoId, args.privacy);
     if (recordId) {
       uploadStore.update(recordId, { privacy: args.privacy });
@@ -561,9 +614,9 @@ export async function runYoutube(argv: string[]): Promise<number> {
   try {
     switch (sub) {
       case "login":
-        return await runLogin();
+        return await runLogin(parseChannel(argv.slice(1)));
       case "status":
-        return await runStatus();
+        return await runStatus(parseChannel(argv.slice(1)));
       case "upload":
         return await runUpload(argv.slice(1));
       case "update":

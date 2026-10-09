@@ -1,3 +1,4 @@
+import type { ChannelConfig as PostingChannel } from "@bix/config";
 import type { LlmClient, ReasoningEffort } from "./llm.js";
 import { parseJsonArray } from "./llm.js";
 import type { EventIdea } from "./events-source.js";
@@ -24,6 +25,12 @@ export interface PlanGeneratorDeps {
   reasoningEffort: ReasoningEffort;
   /** Evergreen format ideas that are always available. */
   evergreenFormats: string[];
+  /**
+   * The posting channel this generator plans for. Its id stamps every slot and
+   * its plannerBrief/posting replace the formerly hardcoded Spanish concept, so
+   * the Global channel plans in English instead of silently staying Spanish.
+   */
+  channel: PostingChannel;
 }
 
 export interface PlanRequest {
@@ -62,12 +69,14 @@ export class OpenAiPlanGenerator {
   private readonly model: string;
   private readonly reasoningEffort: ReasoningEffort;
   private readonly evergreenFormats: string[];
+  private readonly channel: PostingChannel;
 
   constructor(deps: PlanGeneratorDeps) {
     this.client = deps.client;
     this.model = deps.model;
     this.reasoningEffort = deps.reasoningEffort;
     this.evergreenFormats = deps.evergreenFormats;
+    this.channel = deps.channel;
   }
 
   async generate(request: PlanRequest): Promise<ContentPlan> {
@@ -112,7 +121,7 @@ export class OpenAiPlanGenerator {
       month: monthKey(start),
       startDate: start,
       endDate: end,
-      timezone: cadence.timezone,
+      timezone: this.channel.posting.timezone,
       slots,
     };
   }
@@ -165,7 +174,8 @@ export class OpenAiPlanGenerator {
 
     return {
       date,
-      time: toStr(r.time) || "09:00",
+      time: toStr(r.time) || this.channel.posting.time,
+      channel: this.channel.id,
       format,
       source: source as SlotSource,
       topic,
@@ -184,15 +194,13 @@ export class OpenAiPlanGenerator {
       .join("\n");
 
     return [
-      "You are the content planner for Bix Learn, a language app that teaches",
-      "English to Spanish speakers (audience: Bix Learn Español). Brand voice is",
-      "witty and mischievous. The CTA is to download / use the Bix Learn app.",
+      this.channel.plannerBrief,
       "",
       `Plan window: ${start} to ${end} (inclusive).`,
       `Cadence: about ${cadence.postsPerWeek} Shorts per week.`,
-      `Posting time: ${cadence.postingTime} (${cadence.timezone}).`,
+      `Posting time: ${this.channel.posting.time} (${this.channel.posting.timezone}).`,
       "",
-      "Format mix (aim for roughly these shares; Responde a Bix is the largest):",
+      "Format mix (aim for roughly these shares):",
       formatMix,
       "",
       "Evergreen formats always available:",

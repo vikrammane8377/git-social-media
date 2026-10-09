@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import { AddressInfo } from "node:net";
-import { requireKey } from "@bix/config";
+import { requireKey, type ChannelId } from "@bix/config";
 
 /**
  * OAuth 2.0 Authorization Code flow with PKCE against Google, for the YouTube
@@ -72,7 +72,19 @@ export class NeedsLoginError extends Error {
   }
 }
 
-function tokenPath(): string {
+/** The channel whose token the legacy single-file store is treated as. */
+const DEFAULT_CHANNEL: ChannelId = "spanish";
+
+/** Per-channel token file, e.g. `data/youtube-tokens.spanish.json`. */
+function tokenPath(channel: ChannelId): string {
+  return join(process.cwd(), "data", `youtube-tokens.${channel}.json`);
+}
+
+/**
+ * The pre-multi-channel single token file. Kept only so an existing deployment
+ * keeps working as the `spanish` channel until the owner re-logs in per channel.
+ */
+function legacyTokenPath(): string {
   return join(process.cwd(), "data", "youtube-tokens.json");
 }
 
@@ -100,7 +112,7 @@ function clientCredentials(): { clientId: string; clientSecret: string } {
  * captures the authorization code. The caller shows {@link LoginHandle.authUrl}
  * to the user, then awaits waitForTokens().
  */
-export async function startLogin(): Promise<LoginHandle> {
+export async function startLogin(channel: ChannelId = DEFAULT_CHANNEL): Promise<LoginHandle> {
   const { clientId, clientSecret } = clientCredentials();
   const { verifier, challenge } = pkce();
   const state = base64url(randomBytes(16));
@@ -126,7 +138,7 @@ export async function startLogin(): Promise<LoginHandle> {
     waitForTokens: async () => {
       const code = await codePromise;
       const tokens = await exchangeCode(clientId, clientSecret, code, verifier);
-      await save(tokens);
+      await save(tokens, channel);
       return tokens;
     },
   };
@@ -234,7 +246,10 @@ async function exchangeCode(
 }
 
 /** Exchange a refresh token for a new access token. */
-export async function refresh(tokens: StoredTokens): Promise<StoredTokens> {
+export async function refresh(
+  tokens: StoredTokens,
+  channel: ChannelId = DEFAULT_CHANNEL,
+): Promise<StoredTokens> {
   if (!tokens.refreshToken) throw new NeedsLoginError();
   const { clientId, clientSecret } = clientCredentials();
   const res = await fetch(TOKEN_ENDPOINT, {
@@ -272,7 +287,7 @@ export async function refresh(tokens: StoredTokens): Promise<StoredTokens> {
     scope: data.scope ?? tokens.scope,
     token_type: data.token_type,
   });
-  await save(next);
+  await save(next, channel);
   return next;
 }
 
@@ -280,27 +295,36 @@ export async function refresh(tokens: StoredTokens): Promise<StoredTokens> {
  * Return a valid access token, refreshing silently if it is expiring. Throws
  * {@link NeedsLoginError} when there is no token or the refresh token is dead.
  */
-export async function getAccessToken(): Promise<string> {
-  const tokens = await load();
+export async function getAccessToken(channel: ChannelId = DEFAULT_CHANNEL): Promise<string> {
+  const tokens = await load(channel);
   if (!tokens) throw new NeedsLoginError();
   if (tokens.expiresAt - REFRESH_SKEW_MS > Date.now()) {
     return tokens.accessToken;
   }
-  const refreshed = await refresh(tokens);
+  const refreshed = await refresh(tokens, channel);
   return refreshed.accessToken;
 }
 
-export async function load(): Promise<StoredTokens | undefined> {
+export async function load(channel: ChannelId = DEFAULT_CHANNEL): Promise<StoredTokens | undefined> {
+  const direct = await readTokens(tokenPath(channel));
+  if (direct) return direct;
+  // Back-compat: treat the old single token file as the spanish channel's,
+  // so an existing deployment keeps publishing until a per-channel re-login.
+  if (channel === DEFAULT_CHANNEL) return readTokens(legacyTokenPath());
+  return undefined;
+}
+
+async function readTokens(path: string): Promise<StoredTokens | undefined> {
   try {
-    const raw = await readFile(tokenPath(), "utf8");
+    const raw = await readFile(path, "utf8");
     return JSON.parse(raw) as StoredTokens;
   } catch {
     return undefined;
   }
 }
 
-async function save(tokens: StoredTokens): Promise<void> {
-  const path = tokenPath();
+async function save(tokens: StoredTokens, channel: ChannelId = DEFAULT_CHANNEL): Promise<void> {
+  const path = tokenPath(channel);
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, JSON.stringify(tokens, null, 2), { mode: 0o600 });
 }

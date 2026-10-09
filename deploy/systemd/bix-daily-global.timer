@@ -1,0 +1,14 @@
+[Unit]
+Description=Fire the Global-channel daily Short (18:00 UTC)
+
+[Timer]
+# Global channel default is a fixed 18:00 UTC (no local zone) so it stays stable
+# year-round and well inside the same UTC day as the Spanish slot — run-daily's
+# local-date selection stays correct with the VM clock in UTC. Placeholder
+# default — change OnCalendar to the owner's preferred slot time.
+OnCalendar=*-*-* 18:00:00 UTC
+# Catch a missed run after downtime (e.g. VM was off at the trigger time).
+Persistent=true
+
+[Install]
+WantedBy=timers.target

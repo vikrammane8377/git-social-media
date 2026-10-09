@@ -2,7 +2,22 @@ import { describe, it, expect } from "vitest";
 import { OpenAiPlanGenerator, type Cadence, type PlanRequest } from "./plan.js";
 import type { LlmClient, LlmRequest } from "./llm.js";
 import type { CompetitorInsights } from "./types.js";
+import type { ChannelConfig } from "@bix/config";
 import { addDays } from "./dates.js";
+
+/** A Spanish-channel fixture: supplies plannerBrief + posting the generator reads. */
+const channel: ChannelConfig = {
+  id: "spanish",
+  label: "Bix Learn Español",
+  enabled: true,
+  tokenFile: "data/youtube-tokens.spanish.json",
+  primaryLanguage: "es",
+  plannerBrief: "Bix teaches English to Spanish speakers.",
+  writerPersona: "Witty Bix persona.",
+  productFacts: [],
+  metadata: { descriptionFooter: "", categoryId: "27", defaultTags: [] },
+  posting: { time: "09:00", timezone: "America/Mexico_City" },
+};
 
 const cadence: Cadence = {
   postsPerWeek: 5,
@@ -64,6 +79,7 @@ describe("OpenAiPlanGenerator two-track generate", () => {
       model: "gpt-6-astra",
       reasoningEffort: "medium",
       evergreenFormats: ["Responde a Bix series"],
+      channel,
     });
 
     const plan = await gen.generate(baseRequest());
@@ -90,6 +106,7 @@ describe("OpenAiPlanGenerator two-track generate", () => {
       model: "gpt-6-astra",
       reasoningEffort: "medium",
       evergreenFormats: [],
+      channel,
     });
 
     const plan = await gen.generate(baseRequest());
@@ -110,6 +127,7 @@ describe("OpenAiPlanGenerator two-track generate", () => {
       model: "gpt-6-astra",
       reasoningEffort: "medium",
       evergreenFormats: [],
+      channel,
     });
 
     const plan = await gen.generate(baseRequest());
@@ -126,6 +144,7 @@ describe("OpenAiPlanGenerator two-track generate", () => {
       model: "gpt-6-astra",
       reasoningEffort: "medium",
       evergreenFormats: [],
+      channel,
     });
     const plan = await gen.generate(baseRequest());
     expect(plan.slots).toEqual([]);

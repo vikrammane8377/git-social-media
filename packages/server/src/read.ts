@@ -55,6 +55,7 @@ export interface PlanSlot {
   slotTime: string;
   format: string;
   source: string;
+  channel: string;
   topic: string;
   brandFit: number;
   hook: string | null;
@@ -124,6 +125,7 @@ export interface OverviewRow {
   slotTime: string;
   format: string;
   source: string;
+  channel: string;
   topic: string;
   brandFit: number;
   scriptDecision: string | null;
@@ -355,6 +357,7 @@ export class DashboardReader {
       "ps.slot_time AS slot_time",
       "ps.format AS format",
       "ps.source AS source",
+      "COALESCE(ps.channel, 'spanish') AS channel",
       "ps.topic AS topic",
       "ps.brand_fit AS brand_fit",
       hasScripts ? "s.decision AS script_decision" : "NULL AS script_decision",
@@ -383,6 +386,7 @@ export class DashboardReader {
       slotTime: String(r.slot_time),
       format: String(r.format),
       source: String(r.source),
+      channel: String(r.channel ?? "spanish"),
       topic: String(r.topic),
       brandFit: Number(r.brand_fit),
       scriptDecision: (r.script_decision as string | null) ?? null,
@@ -437,6 +441,7 @@ function mapSlot(r: Record<string, unknown>): PlanSlot {
     slotTime: String(r.slot_time),
     format: String(r.format),
     source: String(r.source),
+    channel: String(r.channel ?? "spanish"),
     topic: String(r.topic),
     brandFit: Number(r.brand_fit),
     hook: (r.hook as string | null) ?? null,

@@ -185,6 +185,7 @@ tbody tr:last-child td {
 }
 select,
 input,
+textarea,
 button {
   background: var(--panel-2);
   color: var(--text);
@@ -192,6 +193,25 @@ button {
   border-radius: 8px;
   padding: 6px 10px;
   font-size: 13px;
+}
+textarea {
+  width: 100%;
+  font-family: inherit;
+  resize: vertical;
+}
+.field {
+  display: block;
+  margin: 10px 0;
+  font-size: 13px;
+  color: var(--muted, #888);
+}
+.field textarea,
+.field input {
+  display: block;
+  margin-top: 4px;
+  width: 100%;
+  box-sizing: border-box;
+  color: var(--text);
 }
 button {
   cursor: pointer;

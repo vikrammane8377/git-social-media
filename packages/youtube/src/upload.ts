@@ -1,5 +1,6 @@
 import { getAccessToken } from "./oauth.js";
 import type { VideoMetadata } from "./metadata.js";
+import type { ChannelId } from "@bix/config";
 
 /**
  * Uploads an MP4 to YouTube via the Data API v3 resumable, two-phase protocol:
@@ -58,8 +59,13 @@ export interface ChannelUpload {
 }
 
 export interface UploaderDeps {
-  /** Obtain a bearer access token. Defaults to the OAuth store. */
+  /**
+   * Obtain a bearer access token. Defaults to the OAuth store for {@link channel}
+   * (so each channel uploads with its own token). An explicit function wins.
+   */
   readonly getAccessToken?: () => Promise<string>;
+  /** Which channel's stored token to use when `getAccessToken` is not given. */
+  readonly channel?: ChannelId;
   /** Injectable fetch for tests. Defaults to global fetch. */
   readonly fetch?: typeof fetch;
   /** Warning sink for non-fatal issues (e.g. thumbnail). Defaults to console.warn. */
@@ -72,7 +78,8 @@ export class YouTubeUploader {
   private readonly log: (message: string) => void;
 
   constructor(deps: UploaderDeps = {}) {
-    this.getToken = deps.getAccessToken ?? getAccessToken;
+    const channel = deps.channel;
+    this.getToken = deps.getAccessToken ?? (() => getAccessToken(channel));
     this.fetchImpl = deps.fetch ?? fetch;
     this.log = deps.logger ?? ((m) => console.warn(m));
   }

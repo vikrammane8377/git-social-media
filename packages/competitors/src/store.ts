@@ -25,6 +25,7 @@ export class ContentPlanStore {
         month      TEXT NOT NULL,
         slot_date  TEXT NOT NULL,
         slot_time  TEXT NOT NULL,
+        channel    TEXT NOT NULL DEFAULT 'spanish',
         format     TEXT NOT NULL,
         source     TEXT NOT NULL,
         topic      TEXT NOT NULL,
@@ -35,6 +36,17 @@ export class ContentPlanStore {
         created_at TEXT NOT NULL
       )
     `);
+    // Additive migration: older DBs predate the per-channel axis. Default
+    // existing rows to the original Spanish channel so shipped data keeps working.
+    if (!this.hasColumn("plan_slots", "channel")) {
+      this.db.exec("ALTER TABLE plan_slots ADD COLUMN channel TEXT NOT NULL DEFAULT 'spanish'");
+    }
+  }
+
+  /** Whether a column exists on a table (used to guard additive migrations). */
+  private hasColumn(table: string, column: string): boolean {
+    const rows = this.db.all<{ name: string }>(`PRAGMA table_info(${table})`);
+    return rows.some((r) => r.name === column);
   }
 
   /** Save (replace) a plan and its slots for the plan's month. */
@@ -50,13 +62,14 @@ export class ContentPlanStore {
       i += 1;
       this.db.run(
         `INSERT OR REPLACE INTO plan_slots
-          (id, month, slot_date, slot_time, format, source, topic, brand_fit, hook, why, assets, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (id, month, slot_date, slot_time, channel, format, source, topic, brand_fit, hook, why, assets, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           `${plan.month}-${String(i).padStart(3, "0")}`,
           plan.month,
           slot.date,
           slot.time,
+          slot.channel,
           slot.format,
           slot.source,
           slot.topic,

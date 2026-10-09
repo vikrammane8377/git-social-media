@@ -1,0 +1,16 @@
+{
+  "channels": {
+    "spanish": {
+      "label": "Bix Learn Español",
+      "enabled": true,
+      "primaryLanguage": "es",
+      "posting": { "time": "13:00", "timezone": "America/Mexico_City" }
+    },
+    "global": {
+      "label": "Bix Global",
+      "enabled": true,
+      "primaryLanguage": "en",
+      "posting": { "time": "18:00", "timezone": "UTC" }
+    }
+  }
+}

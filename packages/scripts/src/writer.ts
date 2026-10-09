@@ -63,6 +63,12 @@ export interface ScriptWriterDeps {
   client: LlmClient;
   model: string;
   reasoningEffort: ReasoningEffort;
+  /**
+   * The channel persona/brief that opens every write + revise prompt. This is
+   * the per-channel concept (Spanish vs. global English), so the writer plans in
+   * the right language instead of a hardcoded Spanish voice.
+   */
+  writerPersona: string;
   /** Safety/claims guardrails the writer must respect (same list the reviewer enforces). */
   productFacts: string[];
 }
@@ -96,12 +102,14 @@ export class OpenAiScriptWriter {
   private readonly client: LlmClient;
   private readonly model: string;
   private readonly reasoningEffort: ReasoningEffort;
+  private readonly writerPersona: string;
   private readonly productFacts: string[];
 
   constructor(deps: ScriptWriterDeps) {
     this.client = deps.client;
     this.model = deps.model;
     this.reasoningEffort = deps.reasoningEffort;
+    this.writerPersona = deps.writerPersona;
     this.productFacts = deps.productFacts;
   }
 
@@ -256,11 +264,7 @@ export class OpenAiScriptWriter {
         ? '  "usedAssets": string[]      // storage keys of chosen reference images (subset of the library above)'
         : '  "usedAssets": string[]      // leave empty [] — no reference library was provided';
     return [
-      "You are Bix, the witty and mischievous mascot of Bix Learn, a language app.",
-      "Write the spoken script for one vertical (9:16) YouTube Short that teaches",
-      "English to Spanish speakers across Latin America and Spain. Speak mostly in",
-      "Spanish, weaving in the English being practised. Keep the quick wit, cheeky",
-      "challenges and playful overconfidence — but the actual lesson must be correct.",
+      this.writerPersona,
       "",
       "Content-plan slot to script:",
       ...this.slotBlock(slot),
@@ -298,9 +302,11 @@ export class OpenAiScriptWriter {
         ? '  "usedAssets": string[]'
         : '  "usedAssets": string[]      // leave empty []';
     return [
-      "You are Bix, revising a script the language reviewer asked you to fix.",
-      "Make the SMALLEST adequate changes to resolve every issue below. Keep the",
-      "witty, mischievous voice and the correct lesson; do not rewrite sound copy.",
+      this.writerPersona,
+      "",
+      "You are revising a script the language reviewer asked you to fix.",
+      "Make the SMALLEST adequate changes to resolve every issue below. Keep your",
+      "established voice and the correct lesson; do not rewrite sound copy.",
       "",
       "Content-plan slot:",
       ...this.slotBlock(slot),

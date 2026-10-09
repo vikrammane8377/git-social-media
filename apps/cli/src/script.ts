@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { loadEnv, requireKey } from "@bix/config";
+import { loadEnv, requireKey, getChannel, isChannelId } from "@bix/config";
 import { SqliteDatabase, LocalFileStorage } from "@bix/storage";
 import {
   PlanSlotReader,
@@ -115,18 +115,6 @@ export async function runScript(argv: string[]): Promise<number> {
 
   // Wrap the real client so we can report exactly how many tokens this run used.
   const sol = new UsageTrackingClient(createSolClient(openaiKey));
-  const writer = new OpenAiScriptWriter({
-    client: sol,
-    model: config.model,
-    reasoningEffort: config.reasoningEffort,
-    productFacts: config.productFacts,
-  });
-  const reviewer = new OpenAiScriptReviewer({
-    client: sol,
-    model: config.model,
-    reasoningEffort: config.reasoningEffort,
-    productFacts: config.productFacts,
-  });
 
   const db = new SqliteDatabase("data/bix.db");
   const reader = new PlanSlotReader(db);
@@ -155,6 +143,29 @@ export async function runScript(argv: string[]): Promise<number> {
       }
       slotId = matches[0].id;
     }
+
+    // The slot's channel drives the writer/reviewer persona (Spanish vs. global
+    // English); older rows read back as "spanish".
+    const slotRecord = reader.getById(slotId);
+    const channelId = slotRecord && isChannelId(slotRecord.channel) ? slotRecord.channel : "spanish";
+    const channel = getChannel(channelId, configDir);
+    console.log(`Channel: ${channel.label} (${channel.id})`);
+
+    const writer = new OpenAiScriptWriter({
+      client: sol,
+      model: config.model,
+      reasoningEffort: config.reasoningEffort,
+      writerPersona: channel.writerPersona,
+      productFacts: channel.productFacts,
+    });
+    const reviewer = new OpenAiScriptReviewer({
+      client: sol,
+      model: config.model,
+      reasoningEffort: config.reasoningEffort,
+      channelBrief: channel.writerPersona,
+      primaryLanguage: channel.primaryLanguage,
+      productFacts: channel.productFacts,
+    });
 
     const result = await runScriptWriter({
       reader,

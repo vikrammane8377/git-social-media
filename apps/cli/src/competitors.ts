@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { loadEnv, requireKey } from "@bix/config";
+import { loadEnv, requireKey, enabledChannels } from "@bix/config";
 import { SqliteDatabase, LocalFileStorage } from "@bix/storage";
 import {
   YouTubeDataClient,
@@ -61,12 +61,19 @@ export async function runCompetitorsScan(argv: string[]): Promise<number> {
     model: config.model,
     reasoningEffort: config.reasoningEffort,
   });
-  const planner = new OpenAiPlanGenerator({
-    client: astra,
-    model: config.model,
-    reasoningEffort: config.reasoningEffort,
-    evergreenFormats: config.evergreenFormats,
-  });
+  // One planner per enabled posting channel; each stamps its channel and plans
+  // from that channel's brief (Spanish concept vs. English global concept).
+  const channels = enabledChannels(configDir);
+  const planners = channels.map(
+    (channel) =>
+      new OpenAiPlanGenerator({
+        client: astra,
+        model: config.model,
+        reasoningEffort: config.reasoningEffort,
+        evergreenFormats: config.evergreenFormats,
+        channel,
+      }),
+  );
 
   const db = new SqliteDatabase("data/bix.db");
   const events = new LatestEventsReader(db);
@@ -80,7 +87,7 @@ export async function runCompetitorsScan(argv: string[]): Promise<number> {
     const result = await runCompetitorScan({
       youtube,
       analyst,
-      planner,
+      planners,
       events,
       channels: config.channels,
       maxVideosPerChannel: config.maxVideosPerChannel,

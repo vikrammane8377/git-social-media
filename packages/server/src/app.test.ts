@@ -13,9 +13,9 @@ import { JobManager, type SpawnFn } from "./jobs.js";
 
 function schemaAndSeed(db: Database): void {
   db.exec(`CREATE TABLE content_plans (month TEXT PRIMARY KEY, start_date TEXT, end_date TEXT, timezone TEXT, created_at TEXT)`);
-  db.exec(`CREATE TABLE plan_slots (id TEXT PRIMARY KEY, month TEXT, slot_date TEXT, slot_time TEXT, format TEXT, source TEXT, topic TEXT, brand_fit INTEGER, hook TEXT, why TEXT, assets TEXT, created_at TEXT)`);
+  db.exec(`CREATE TABLE plan_slots (id TEXT PRIMARY KEY, month TEXT, slot_date TEXT, slot_time TEXT, channel TEXT, format TEXT, source TEXT, topic TEXT, brand_fit INTEGER, hook TEXT, why TEXT, assets TEXT, created_at TEXT)`);
   db.run(`INSERT INTO content_plans VALUES ('2026-09','2026-09-01','2026-09-30','UTC','t')`);
-  db.run(`INSERT INTO plan_slots VALUES ('2026-09-003','2026-09','2026-09-03','09:00','Short','events','Topic',80,NULL,NULL,NULL,'t')`);
+  db.run(`INSERT INTO plan_slots VALUES ('2026-09-003','2026-09','2026-09-03','09:00','spanish','Short','events','Topic',80,NULL,NULL,NULL,'t')`);
 }
 
 /** Create the scripts table and insert one row carrying the given assets_used. */

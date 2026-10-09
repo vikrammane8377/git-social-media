@@ -77,6 +77,7 @@ export function renderPlanReport(result: CompetitorScanResult): string {
     for (const s of plan.slots) {
       lines.push(`### ${s.date} ${s.time} — ${s.format}  \`${s.brandFit}/10\``);
       lines.push("");
+      lines.push(`- **Channel:** ${s.channel}`);
       lines.push(`- **Source:** ${sourceLabel(s.source)}`);
       lines.push(`- **Topic:** ${s.topic}`);
       if (s.hook) lines.push(`- **Hook:** ${s.hook}`);

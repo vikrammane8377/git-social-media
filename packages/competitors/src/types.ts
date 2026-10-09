@@ -1,3 +1,5 @@
+import type { ChannelId } from "@bix/config";
+
 /** Core types for the monthly competitor scan and 30-day content plan. */
 
 /** A tracked competitor channel, as configured by the owner. */
@@ -55,6 +57,8 @@ export type SlotSource = "event" | "competitor" | "evergreen";
 export interface PlanSlot {
   date: string;
   time: string;
+  /** Which posting channel this slot belongs to (spanish|global). */
+  channel: ChannelId;
   format: string;
   source: SlotSource;
   topic: string;

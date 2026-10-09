@@ -7,6 +7,14 @@ export interface ScriptReviewerDeps {
   client: LlmClient;
   model: string;
   reasoningEffort: ReasoningEffort;
+  /**
+   * The channel's creative brief (the same persona the writer followed) so the
+   * reviewer judges the script against the right language/audience instead of a
+   * hardcoded Spanish one.
+   */
+  channelBrief: string;
+  /** The channel's primary content language, e.g. "es" | "en". */
+  primaryLanguage: string;
   /** Approved product facts / guardrails the reviewer enforces. */
   productFacts: string[];
 }
@@ -34,12 +42,16 @@ export class OpenAiScriptReviewer {
   private readonly client: LlmClient;
   private readonly model: string;
   private readonly reasoningEffort: ReasoningEffort;
+  private readonly channelBrief: string;
+  private readonly primaryLanguage: string;
   private readonly productFacts: string[];
 
   constructor(deps: ScriptReviewerDeps) {
     this.client = deps.client;
     this.model = deps.model;
     this.reasoningEffort = deps.reasoningEffort;
+    this.channelBrief = deps.channelBrief;
+    this.primaryLanguage = deps.primaryLanguage;
     this.productFacts = deps.productFacts;
   }
 
@@ -90,16 +102,18 @@ export class OpenAiScriptReviewer {
       "",
       "This is the SCRIPT stage — you gate the draft BEFORE any video is generated.",
       "",
-      "Audience: Bix Learn Español. Content language: Spanish. Learning language:",
-      "English. Locale: Spain and Latin America. Preserve Bix's witty, mischievous",
-      "voice while checking the actual lesson.",
+      "Creative brief the writer followed (judge the script against this intent):",
+      this.channelBrief,
+      "",
+      `Primary content language: ${this.primaryLanguage}. Preserve Bix's witty,`,
+      "mischievous voice while checking the actual lesson.",
       "",
       "Check: teaching accuracy (translations, grammar, vocabulary, false friends,",
       "register, learner-level fit; a literal translation must not be taught as",
       "natural); comic context (keep the joke, but the correct learning point must",
-      "be identifiable); naturalness; locale (respect valid Spain vs Latin American",
-      "variants — do not label a valid regional form an error); product claims; and",
-      "the call to action.",
+      "be identifiable); naturalness; locale (respect valid regional variants of the",
+      "languages involved — do not label a valid regional form an error); product",
+      "claims; and the call to action.",
       "",
       "Approved product facts / guardrails (compare every claim to these):",
       ...this.productFacts.map((f) => `  - ${f}`),
@@ -116,10 +130,14 @@ export class OpenAiScriptReviewer {
       `  durationSeconds: ${draft.durationSeconds}`,
       `  notes: ${JSON.stringify(draft.notes ?? "")}`,
       draft.usedAssets.length > 0
-        ? `  chosen reference images: ${draft.usedAssets.join(", ")}`
+        ? `  reference images chosen (context only; the owner verifies these separately — do NOT judge or gate on them): ${draft.usedAssets.join(", ")}`
         : "",
       "",
       "Decision rules:",
+      "- Judge ONLY the script text (teaching, product claims, brand voice, CTA).",
+      "  Reference images are OUT OF SCOPE here: never return NEEDS_EVIDENCE or",
+      "  REVISE because you cannot see or verify a reference image — their visual",
+      "  compliance is the owner's separate check, not a gate at this stage.",
       "- A critical teaching error or an unsupported/contradicted material product",
       "  claim requires REVISE.",
       "- If evidence is insufficient to judge a material claim, return NEEDS_EVIDENCE",

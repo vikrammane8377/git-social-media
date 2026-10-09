@@ -1,5 +1,5 @@
 [Unit]
-Description=Bix daily Short — event track (script -> video -> captions -> public YouTube)
+Description=Bix daily Short — Spanish channel (script -> video -> captions -> public YouTube)
 After=network-online.target
 Wants=network-online.target
 
@@ -12,4 +12,4 @@ EnvironmentFile=/opt/bix-learn-sm/.env
 # Run the compiled CLI directly (no tsx). WorkingDirectory + dotenv resolve
 # .env, data/, outputs/, assets/. run-daily is date-driven, skips already-
 # published slots, and exits 0 on a quiet day.
-ExecStart=/usr/bin/node apps/cli/dist/index.js run-daily --source event --privacy public
+ExecStart=/usr/bin/node apps/cli/dist/index.js run-daily --channel spanish --privacy public

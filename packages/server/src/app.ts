@@ -10,6 +10,8 @@ import type { DashboardReader } from "./read.js";
 import type { JobManager } from "./jobs.js";
 import type { RunKind, RunsStore } from "./runs-store.js";
 import type { AssetsStore } from "./assets-store.js";
+import type { PublishDefaults, SettingsStore } from "./settings-store.js";
+import type { ChannelOverrides } from "@bix/config";
 
 /**
  * Framework wiring only. All real logic lives in read/health/media/jobs so it is
@@ -27,6 +29,8 @@ export interface AppDeps {
   runsStore?: RunsStore;
   /** Tagged image asset library. Absent → asset endpoints return 501. */
   assetsStore?: AssetsStore;
+  /** Dashboard-editable settings (publish defaults + channel overrides). */
+  settingsStore?: SettingsStore;
   /** Storage used to save/serve uploaded asset bytes. Absent → uploads 501. */
   storage?: FileStorage;
   /** Vision analyzer run in the background after upload. Absent → no analysis. */
@@ -253,6 +257,48 @@ export function createApp(deps: AppDeps): Hono {
     } catch (err) {
       return mediaError(c, err);
     }
+  });
+
+  // ---- Settings: publish defaults + channel overrides --------------------
+  const { settingsStore } = deps;
+
+  // The effective channels (defaults <- config/channels.json), for display.
+  app.get("/api/channels", (c) => {
+    if (!settingsStore) return c.json({ channels: [] });
+    return c.json({ channels: settingsStore.resolvedChannels() });
+  });
+
+  app.get("/api/settings", (c) => {
+    if (!settingsStore) return c.json({ error: "Settings are not enabled." }, 501);
+    return c.json({
+      publishDefaults: settingsStore.getPublishDefaults(),
+      channels: settingsStore.resolvedChannels(),
+      channelOverrides: settingsStore.getChannelOverrides(),
+    });
+  });
+
+  app.put("/api/settings", async (c) => {
+    if (!settingsStore) return c.json({ error: "Settings are not enabled." }, 501);
+    let body: {
+      publishDefaults?: Partial<PublishDefaults>;
+      channelOverrides?: ChannelOverrides;
+    };
+    try {
+      body = (await c.req.json()) as typeof body;
+    } catch {
+      return c.json({ error: "Invalid JSON body." }, 400);
+    }
+    if (body.channelOverrides) {
+      settingsStore.setChannelOverrides(body.channelOverrides);
+    }
+    const publishDefaults = body.publishDefaults
+      ? settingsStore.setPublishDefaults(body.publishDefaults)
+      : settingsStore.getPublishDefaults();
+    return c.json({
+      publishDefaults,
+      channels: settingsStore.resolvedChannels(),
+      channelOverrides: settingsStore.getChannelOverrides(),
+    });
   });
 
   // ---- Phase 2: trigger actions -----------------------------------------

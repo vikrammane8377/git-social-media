@@ -1,9 +1,10 @@
 [Unit]
-Description=Fire the event-track daily Short (13:00 America/Mexico_City = 19:00 UTC)
+Description=Fire the Spanish-channel daily Short (13:00 America/Mexico_City = 19:00 UTC)
 
 [Timer]
 # Mexico has no DST, so this is a fixed 19:00 UTC. The timezone suffix keeps the
-# intent readable; systemd resolves it against the zone's rules.
+# intent readable; systemd resolves it against the zone's rules. Placeholder
+# default — change OnCalendar to the owner's preferred slot time.
 OnCalendar=*-*-* 13:00:00 America/Mexico_City
 # Catch a missed run after downtime (e.g. VM was off at the trigger time).
 Persistent=true

@@ -8,6 +8,9 @@ const STATUSES = ["ALL", "COMPLETED", "IN_PROGRESS", "SUBMITTED", "FAILED", "NON
 
 export function Overview() {
   const { data, error, loading, reload } = useAsync(() => api.overview(), []);
+  // Publish defaults drive the privacy each manual run posts with (default public).
+  const { data: settings } = useAsync(() => api.settings(), []);
+  const privacy = settings?.publishDefaults.privacy ?? "public";
   const [decision, setDecision] = useState("ALL");
   const [videoStatus, setVideoStatus] = useState("ALL");
 
@@ -61,6 +64,7 @@ export function Overview() {
           <thead>
             <tr>
               <th>Date / time</th>
+              <th>Channel</th>
               <th>Format</th>
               <th>Topic</th>
               <th>Fit</th>
@@ -73,7 +77,7 @@ export function Overview() {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <Row key={r.slotId} row={r} reload={reload} />
+              <Row key={r.slotId} row={r} reload={reload} privacy={privacy} />
             ))}
           </tbody>
         </table>
@@ -84,7 +88,15 @@ export function Overview() {
 
 type DemoState = "idle" | "starting" | "running" | "done" | "error";
 
-function Row({ row, reload }: { row: OverviewRow; reload: () => void }) {
+function Row({
+  row,
+  reload,
+  privacy,
+}: {
+  row: OverviewRow;
+  reload: () => void;
+  privacy: string;
+}) {
   const [state, setState] = useState<DemoState>("idle");
   const [lastLine, setLastLine] = useState("");
   const esRef = useRef<EventSource | null>(null);
@@ -99,7 +111,7 @@ function Row({ row, reload }: { row: OverviewRow; reload: () => void }) {
   async function runPipeline(): Promise<void> {
     const ok = window.confirm(
       `Run the full pipeline for this slot?\n\n${row.slotDate} ${row.slotTime} — ${row.topic}\n\n` +
-        "This spends real video credits and posts an unlisted video to YouTube.",
+        `This spends real video credits and posts a ${privacy} video to the ${row.channel} channel on YouTube.`,
     );
     if (!ok) return;
 
@@ -109,6 +121,7 @@ function Row({ row, reload }: { row: OverviewRow; reload: () => void }) {
       const { runId } = await api.startRun({
         kind: "orchestrate",
         slotId: row.slotId,
+        privacy,
         confirm: true,
       });
       setState("running");
@@ -161,6 +174,9 @@ function Row({ row, reload }: { row: OverviewRow; reload: () => void }) {
           <br />
           <span className="muted">{row.slotTime}</span>
         </Link>
+      </td>
+      <td>
+        <Chip value={row.channel} />
       </td>
       <td>{row.format}</td>
       <td>{row.topic}</td>

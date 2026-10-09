@@ -11,6 +11,7 @@ import { MediaService } from "./media.js";
 import { JobManager } from "./jobs.js";
 import { RunsStore } from "./runs-store.js";
 import { AssetsStore } from "./assets-store.js";
+import { SettingsStore } from "./settings-store.js";
 
 /**
  * Boots the dashboard API: opens the same `data/bix.db` the CLI writes, builds
@@ -49,6 +50,9 @@ export function startServer(options: StartServerOptions = {}): { port: number; c
   const assetsStore = new AssetsStore(db);
   assetsStore.init();
 
+  const settingsStore = new SettingsStore(db, join(root, "config"));
+  settingsStore.init();
+
   // Vision analyzer for uploaded assets — only when an OpenAI key is present.
   // Reuses the script writer's model + guardrails from config/script-writer.json.
   const openAiKey = process.env.OPENAI_API_KEY;
@@ -71,6 +75,7 @@ export function startServer(options: StartServerOptions = {}): { port: number; c
     jobs,
     runsStore,
     assetsStore,
+    settingsStore,
     storage,
     assetAnalyzer,
     authToken: process.env.DASHBOARD_TOKEN,

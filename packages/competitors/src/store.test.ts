@@ -12,6 +12,7 @@ function plan(slots: number): ContentPlan {
     slots: Array.from({ length: slots }, (_, i) => ({
       date: `2026-10-0${i + 1}`,
       time: "09:00",
+      channel: "spanish" as const,
       format: "Responde a Bix",
       source: "evergreen" as const,
       topic: `topic ${i}`,

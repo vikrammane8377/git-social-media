@@ -1,13 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { chooseSlot, todayLocalISODate, type DailySource } from "./run-daily.js";
+import { chooseSlot, todayLocalISODate } from "./run-daily.js";
+import type { ChannelId } from "@bix/config";
 import type { PlanSlotRecord } from "@bix/youtube";
 
-function slot(id: string, source: DailySource, time: string): PlanSlotRecord {
+function slot(
+  id: string,
+  channel: ChannelId,
+  time: string,
+  source = "event",
+): PlanSlotRecord {
   return {
     id,
     month: "2026-10",
     date: "2026-10-01",
     time,
+    channel,
     format: "False-friend reveal",
     source,
     topic: `topic ${id}`,
@@ -21,39 +28,40 @@ function slot(id: string, source: DailySource, time: string): PlanSlotRecord {
 const none = (): boolean => false;
 
 describe("chooseSlot", () => {
+  // A day emits one slot per channel, each a free event/competitor mix.
   const day = [
-    slot("2026-10-001", "event", "09:00"),
-    slot("2026-10-002", "competitor", "17:00"),
+    slot("2026-10-001", "spanish", "09:00", "event"),
+    slot("2026-10-002", "global", "17:00", "competitor"),
   ];
 
-  it("runs the matching source's slot", () => {
-    expect(chooseSlot(day, "event", none)).toEqual({ kind: "run", slot: day[0] });
-    expect(chooseSlot(day, "competitor", none)).toEqual({ kind: "run", slot: day[1] });
+  it("runs the matching channel's slot", () => {
+    expect(chooseSlot(day, "spanish", none)).toEqual({ kind: "run", slot: day[0] });
+    expect(chooseSlot(day, "global", none)).toEqual({ kind: "run", slot: day[1] });
   });
 
-  it("skips when no slot of that source is scheduled", () => {
-    const onlyEvents = [slot("2026-10-001", "event", "09:00")];
-    expect(chooseSlot(onlyEvents, "competitor", none)).toEqual({
+  it("skips when no slot of that channel is scheduled", () => {
+    const onlySpanish = [slot("2026-10-001", "spanish", "09:00")];
+    expect(chooseSlot(onlySpanish, "global", none)).toEqual({
       kind: "skip",
-      reason: "no competitor slot scheduled",
+      reason: "no global slot scheduled",
     });
   });
 
   it("skips when the only matching slot is already published", () => {
     const published = (id: string): boolean => id === "2026-10-001";
-    expect(chooseSlot(day, "event", published)).toEqual({
+    expect(chooseSlot(day, "spanish", published)).toEqual({
       kind: "skip",
-      reason: "event slot already published",
+      reason: "spanish slot already published",
     });
   });
 
-  it("picks the earliest still-unpublished slot when a source has several", () => {
+  it("picks the earliest still-unpublished slot when a channel has several", () => {
     const two = [
-      slot("2026-10-001", "event", "08:00"),
-      slot("2026-10-003", "event", "12:00"),
+      slot("2026-10-001", "spanish", "08:00"),
+      slot("2026-10-003", "spanish", "12:00"),
     ];
     const firstDone = (id: string): boolean => id === "2026-10-001";
-    expect(chooseSlot(two, "event", firstDone)).toEqual({ kind: "run", slot: two[1] });
+    expect(chooseSlot(two, "spanish", firstDone)).toEqual({ kind: "run", slot: two[1] });
   });
 });
 

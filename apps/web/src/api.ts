@@ -28,6 +28,7 @@ export interface OverviewRow {
   slotTime: string;
   format: string;
   source: string;
+  channel: string;
   topic: string;
   brandFit: number;
   scriptDecision: string | null;
@@ -54,6 +55,7 @@ export interface PlanSlot {
   slotTime: string;
   format: string;
   source: string;
+  channel: string;
   topic: string;
   brandFit: number;
   hook: string | null;
@@ -168,6 +170,59 @@ export interface RunRecord {
   endedAt: string | null;
 }
 
+export interface ChannelMetadata {
+  descriptionFooter: string;
+  categoryId: string;
+  defaultTags: string[];
+}
+
+export interface ChannelPosting {
+  time: string;
+  timezone: string;
+}
+
+/** Effective channel config (defaults <- config/channels.json). */
+export interface Channel {
+  id: string;
+  label: string;
+  enabled: boolean;
+  tokenFile: string;
+  primaryLanguage: string;
+  plannerBrief: string;
+  writerPersona: string;
+  productFacts: string[];
+  metadata: ChannelMetadata;
+  posting: ChannelPosting;
+}
+
+/** The subset of a channel the dashboard may override, written to channels.json. */
+export interface ChannelOverride {
+  label?: string;
+  enabled?: boolean;
+  tokenFile?: string;
+  primaryLanguage?: string;
+  plannerBrief?: string;
+  writerPersona?: string;
+  productFacts?: string[];
+  metadata?: Partial<ChannelMetadata>;
+  posting?: Partial<ChannelPosting>;
+}
+
+export type ChannelOverrides = Record<string, ChannelOverride>;
+
+export interface PublishDefaults {
+  privacy: string;
+  provider: string | null;
+  maxRevisions: number | null;
+  captions: boolean;
+}
+
+export interface Settings {
+  publishDefaults: PublishDefaults;
+  channels: Channel[];
+  channelOverrides: ChannelOverrides;
+}
+
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) {
@@ -194,6 +249,23 @@ export const api = {
   eventScans: () => getJson<{ scans: EventScan[] }>("/api/events/scans").then((r) => r.scans),
   runs: () => getJson<{ runs: RunRecord[] }>("/api/runs").then((r) => r.runs),
   run: (id: string) => getJson<RunRecord>(`/api/runs/${encodeURIComponent(id)}`),
+
+  channels: () => getJson<{ channels: Channel[] }>("/api/channels").then((r) => r.channels),
+  settings: () => getJson<Settings>("/api/settings"),
+
+  async updateSettings(body: {
+    publishDefaults?: Partial<PublishDefaults>;
+    channelOverrides?: ChannelOverrides;
+  }): Promise<Settings> {
+    const res = await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = (await res.json().catch(() => ({}))) as Partial<Settings> & { error?: string };
+    if (!res.ok) throw new Error(data.error ?? `${res.status} ${res.statusText}`);
+    return data as Settings;
+  },
 
   reportUrl: (key: string) => `/api/report?key=${encodeURIComponent(key)}`,
   videoUrl: (key: string) => `/api/media/video?key=${encodeURIComponent(key)}`,

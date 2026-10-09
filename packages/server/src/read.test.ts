@@ -14,7 +14,8 @@ function createSchema(db: Database): void {
     timezone TEXT NOT NULL, created_at TEXT NOT NULL)`);
   db.exec(`CREATE TABLE plan_slots (
     id TEXT PRIMARY KEY, month TEXT NOT NULL, slot_date TEXT NOT NULL, slot_time TEXT NOT NULL,
-    format TEXT NOT NULL, source TEXT NOT NULL, topic TEXT NOT NULL, brand_fit INTEGER NOT NULL,
+    channel TEXT NOT NULL DEFAULT 'spanish', format TEXT NOT NULL, source TEXT NOT NULL,
+    topic TEXT NOT NULL, brand_fit INTEGER NOT NULL,
     hook TEXT, why TEXT, assets TEXT, created_at TEXT NOT NULL)`);
   db.exec(`CREATE TABLE scripts (
     slot_id TEXT PRIMARY KEY, title TEXT, scene_prompt TEXT NOT NULL, dialogue TEXT NOT NULL,
