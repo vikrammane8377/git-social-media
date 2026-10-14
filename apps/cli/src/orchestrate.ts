@@ -1,10 +1,11 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { loadEnv, requireKey, getChannel, isChannelId, type ChannelConfig } from "@bix/config";
 import { SqliteDatabase, LocalFileStorage } from "@bix/storage";
 import {
   PlanSlotReader,
+  type PlanSlotRecord,
   AssetReader,
   ScriptStore,
   OpenAiScriptWriter,
@@ -34,6 +35,12 @@ import {
   type VideoProvider,
 } from "@bix/video";
 import { OpusClipCaptioner, aspectRatioToLayout } from "@bix/captions";
+import {
+  loadBrandAssets,
+  composeThumbnail,
+  overlayBadges,
+  isAvailable as ffmpegAvailable,
+} from "@bix/brand";
 import { publishFile } from "./youtube.js";
 import { selectRefs, pickThumbnailKey, mimeFromKey, DEFAULT_REF } from "./refs.js";
 
@@ -137,6 +144,7 @@ async function runScriptPhase(
   config: ReturnType<typeof loadScriptWriterConfig>,
   channel: ChannelConfig,
   sol: UsageTrackingClient,
+  images: readonly string[] | undefined,
 ): Promise<ScriptResult> {
   const writer = new OpenAiScriptWriter({
     client: sol,
@@ -144,6 +152,7 @@ async function runScriptPhase(
     reasoningEffort: config.reasoningEffort,
     writerPersona: channel.writerPersona,
     productFacts: channel.productFacts,
+    outroCta: channel.outroCta,
   });
   const reviewer = new OpenAiScriptReviewer({
     client: sol,
@@ -169,6 +178,7 @@ async function runScriptPhase(
       maxRevisions,
       provider,
       slotId,
+      images,
       logger: (message) => console.log(message),
     });
   } finally {
@@ -189,6 +199,42 @@ function resolveChannel(slotId: string, configDir: string): ChannelConfig {
     return getChannel(id, configDir);
   } finally {
     db.close();
+  }
+}
+
+/** Fetch the slot record once; its `source` and `assets` drive feature behaviour. */
+function readSlotRecord(slotId: string): PlanSlotRecord | undefined {
+  const db = new SqliteDatabase("data/bix.db");
+  try {
+    return new PlanSlotReader(db).getById(slotId);
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * For a feature slot, load the showcased screenshot (`slot.assets[0]`) as a
+ * base64 PNG data URL so the writer can SEE the exact feature it is scripting.
+ * Returns undefined for non-feature slots, or when the screenshot is missing or
+ * unreadable — NON-FATAL: the writer then works from the topic text alone.
+ */
+function readFeatureImages(slot: PlanSlotRecord | undefined, root: string): string[] | undefined {
+  if (!slot || slot.source !== "feature") return undefined;
+  const rel = slot.assets[0];
+  if (!rel) return undefined;
+  const full = resolve(root, rel);
+  if (!existsSync(full)) {
+    console.warn(`Feature screenshot not found, scripting from the topic only: ${rel}`);
+    return undefined;
+  }
+  try {
+    const b64 = readFileSync(full).toString("base64");
+    return [`data:image/png;base64,${b64}`];
+  } catch (err) {
+    console.warn(
+      `Feature screenshot unreadable (${rel}); scripting from the topic only: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return undefined;
   }
 }
 
@@ -268,6 +314,7 @@ async function realizeNeededImages(
     client: createOpenAiImageGenerator(openaiKey),
     model: config.image.model,
     size: config.image.size,
+    artDirection: config.image.artDirection,
   });
 
   const db = new SqliteDatabase("data/bix.db");
@@ -375,14 +422,19 @@ export async function runOrchestrate(argv: string[]): Promise<number> {
 
   let slotId: string;
   let channel: ChannelConfig;
+  let slotRecord: PlanSlotRecord | undefined;
   try {
     slotId = resolveSlotId(args);
     channel = resolveChannel(slotId, configDir);
+    slotRecord = readSlotRecord(slotId);
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     return 1;
   }
   console.log(`Channel: ${channel.label} (${channel.id})`);
+
+  // For a feature slot the showcased screenshot is a vision input to the writer.
+  const featureImages = readFeatureImages(slotRecord, process.cwd());
 
   const fileStorage = new LocalFileStorage(process.cwd());
   const sol = new UsageTrackingClient(createSolClient(openaiKey));
@@ -390,7 +442,7 @@ export async function runOrchestrate(argv: string[]): Promise<number> {
   // ---- Phase 1: script + review gate --------------------------------------
   let result: ScriptResult;
   try {
-    result = await runScriptPhase(slotId, providerName, maxRevisions, config, channel, sol);
+    result = await runScriptPhase(slotId, providerName, maxRevisions, config, channel, sol, featureImages);
   } catch (err) {
     console.error("");
     console.error(`Script phase failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -463,7 +515,32 @@ export async function runOrchestrate(argv: string[]): Promise<number> {
   }
 
   // Prefer a freshly generated still for the custom YouTube thumbnail.
-  const thumbnailKey = pickThumbnailKey(generatedKeys, effectiveRefs);
+  let thumbnailKey = pickThumbnailKey(generatedKeys, effectiveRefs);
+
+  // Designed thumbnail: composite the base still + title + logo + store badges
+  // into a 1080x1920 PNG (channel-agnostic, shared brand assets). NON-FATAL: on
+  // any failure we keep the raw still (today's behaviour) and warn. Skipped when
+  // disabled, when there is no base still, or when ffmpeg is unavailable.
+  if (config.thumbnail.enabled && thumbnailKey && ffmpegAvailable()) {
+    try {
+      const brand = loadBrandAssets(process.cwd());
+      const thumbOutKey = `outputs/thumbnails/thumb-${result.slotId}.png`;
+      const thumbOutPath = fileStorage.localPath(thumbOutKey);
+      mkdirSync(dirname(thumbOutPath), { recursive: true });
+      composeThumbnail({
+        basePath: fileStorage.localPath(thumbnailKey),
+        outPath: thumbOutPath,
+        title: result.draft.title ?? "",
+        brand,
+      });
+      thumbnailKey = thumbOutKey;
+      console.log(`Thumbnail: ${thumbOutPath}`);
+    } catch (err) {
+      console.warn(
+        `Designed thumbnail skipped (using the raw still): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 
   // ---- Phase 2: generate the video ----------------------------------------
   console.log("");
@@ -473,9 +550,28 @@ export async function runOrchestrate(argv: string[]): Promise<number> {
   const videoStore = new VideoJobStore(db);
   const runner = new VideoRunner({ provider, store: videoStore, fileStorage });
 
+  // The script ends on the app-promo CTA (Bix holding a phone showing the app),
+  // so give Wan the actual app screen as a reference: the showcased screenshot
+  // for a feature slot, else the configured default home screen. Dropped when
+  // missing (NON-FATAL). All refs go in as reference_image (referencesOnly) — no
+  // start_image, which Wan rejects alongside reference media.
+  const appScreenRel =
+    slotRecord?.source === "feature" && slotRecord.assets[0]
+      ? slotRecord.assets[0]
+      : config.outro.appScreenshot;
+  const refsForGen = [...effectiveRefs];
+  if (appScreenRel && !refsForGen.includes(appScreenRel)) {
+    if (existsSync(resolve(process.cwd(), appScreenRel))) {
+      refsForGen.push(appScreenRel);
+    } else {
+      console.warn(`App-screen reference not found, skipping: ${appScreenRel}`);
+    }
+  }
+
   const request: VideoRequest = {
     prompt: result.videoPrompt,
-    refImagePaths: effectiveRefs,
+    refImagePaths: refsForGen,
+    referencesOnly: true,
     resolution: config.video.resolution,
     aspectRatio: config.video.aspectRatio,
     duration: result.draft.durationSeconds || config.video.durationSeconds,
@@ -501,6 +597,10 @@ export async function runOrchestrate(argv: string[]): Promise<number> {
 
   // ---- Phase 3: burn in captions (OpusClip) -------------------------------
   let publishKey = outputPath;
+  // Local files this run produces, deleted after a successful upload. publishKey
+  // is re-added after each phase so every intermediate (captioned clip, end-card,
+  // outro clip) is cleaned up even as publishKey is reassigned.
+  const videoArtifacts = new Set<string>([outputPath]);
   if (args.captions && config.captions.enabled) {
     console.log("");
     console.log("Adding captions with OpusClip (spends OpusClip credits)...");
@@ -513,6 +613,7 @@ export async function runOrchestrate(argv: string[]): Promise<number> {
         (message) => console.log(message),
       );
       console.log(`Captioned:  ${fileStorage.localPath(publishKey)}`);
+      videoArtifacts.add(publishKey);
     } catch (err) {
       console.error("");
       console.error(`Captioning failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -523,6 +624,44 @@ export async function runOrchestrate(argv: string[]): Promise<number> {
   } else {
     console.log("");
     console.log("Captions disabled — publishing the raw clip.");
+  }
+
+  // ---- Phase 3.5: overlay the store badges on the CTA tail -----------------
+  // The script already ends on the app-promo CTA (Bix holding a phone showing
+  // the app), so the only brand layer Wan can't render is the two store badges.
+  // Composite "APP STORE" + "PLAY STORE" side-by-side over the tail of the
+  // captioned clip — from where the CTA begins (durationSeconds - badgeTail) to
+  // the end. NON-FATAL: any failure publishes the captioned clip unchanged.
+  // Skipped when disabled, when the badges are missing, or when ffmpeg is absent.
+  if (config.outro.enabled && config.outro.badgeOverlay && ffmpegAvailable()) {
+    console.log("");
+    console.log("Overlaying the store badges on the CTA tail...");
+    try {
+      const brand = loadBrandAssets(process.cwd());
+      if (brand.appStorePath && brand.playStorePath) {
+        const clipSeconds = result.draft.durationSeconds || config.video.durationSeconds;
+        const startSeconds = Math.max(0, clipSeconds - config.outro.badgeTailSeconds);
+        const badgedKey = publishKey.endsWith(".mp4")
+          ? `${publishKey.slice(0, -4)}-badged.mp4`
+          : `${publishKey}-badged.mp4`;
+        overlayBadges({
+          videoPath: fileStorage.localPath(publishKey),
+          appStorePath: brand.appStorePath,
+          playStorePath: brand.playStorePath,
+          outPath: fileStorage.localPath(badgedKey),
+          startSeconds,
+        });
+        publishKey = badgedKey;
+        videoArtifacts.add(badgedKey);
+        console.log(`With badges: ${fileStorage.localPath(publishKey)}`);
+      } else {
+        console.warn("Store badges not found; publishing without the badge overlay.");
+      }
+    } catch (err) {
+      console.warn(
+        `Badge overlay skipped (publishing the clip without badges): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   // ---- Phase 4: publish to YouTube ----------------------------------------
@@ -539,12 +678,12 @@ export async function runOrchestrate(argv: string[]): Promise<number> {
     console.log(`YouTube:    ${outcome.url}`);
 
     // The clip is safely on YouTube now (that's the source of truth), so the
-    // local MP4s this run produced — the raw clip and its captioned render — are
-    // disposable. Delete them immediately to keep the VM's disk from filling up.
-    // Cleanup never fails the run: the publish already succeeded, and
-    // delete() is a no-op on a missing file.
+    // local files this run produced — the raw clip, its captioned render, the
+    // end-card and the outro clip — are disposable. Delete them immediately to
+    // keep the VM's disk from filling up. Cleanup never fails the run: the
+    // publish already succeeded, and delete() is a no-op on a missing file.
     try {
-      for (const key of new Set([outputPath, publishKey])) {
+      for (const key of videoArtifacts) {
         fileStorage.delete(key);
       }
       console.log("Cleaned up the local video file(s) now that the upload succeeded.");

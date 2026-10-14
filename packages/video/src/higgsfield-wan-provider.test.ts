@@ -77,6 +77,25 @@ describe("HiggsfieldWanProvider.submit", () => {
     ]);
   });
 
+  it("maps every image to reference_image (no start_image) when referencesOnly is set", async () => {
+    callTool.mockResolvedValueOnce(jobEnvelope("job-refonly"));
+    const provider = new HiggsfieldWanProvider();
+
+    await provider.submit({
+      ...baseInput,
+      referencesOnly: true,
+      imageUrls: ["media-1", "media-2"],
+    });
+
+    const [, args] = callTool.mock.calls[0];
+    const params = (args as { params: { medias: Array<{ value: string; role: string }> } }).params;
+    // No start_image — Wan rejects a start_image combined with reference media.
+    expect(params.medias).toEqual([
+      { value: "media-1", role: "reference_image" },
+      { value: "media-2", role: "reference_image" },
+    ]);
+  });
+
   it("declines a preset recommendation and retries literally", async () => {
     callTool
       .mockResolvedValueOnce(presetEnvelope("preset-xyz"))
@@ -124,9 +143,11 @@ describe("HiggsfieldWanProvider.status", () => {
     return (await provider.status("job-1")).state;
   };
 
-  it("maps queued and pending to IN_QUEUE", async () => {
+  it("maps queued, pending and waiting to IN_QUEUE", async () => {
     expect(await statusCase("queued")).toBe("IN_QUEUE");
     expect(await statusCase("pending")).toBe("IN_QUEUE");
+    // "waiting" is a transient pre-run queue state, not a failure.
+    expect(await statusCase("waiting")).toBe("IN_QUEUE");
   });
 
   it("maps in_progress and completed", async () => {

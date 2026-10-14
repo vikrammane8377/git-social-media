@@ -25,6 +25,7 @@
     "youtube": "tsx apps/cli/src/index.ts youtube",
     "script": "tsx apps/cli/src/index.ts script",
     "orchestrate": "tsx apps/cli/src/index.ts orchestrate",
+    "plan:features": "tsx apps/cli/src/index.ts plan:features",
     "run-daily": "tsx apps/cli/src/index.ts run-daily",
     "server": "tsx packages/server/src/server.ts",
     "web": "npm --workspace apps/web run dev",

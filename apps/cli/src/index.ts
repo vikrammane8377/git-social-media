@@ -7,6 +7,7 @@ import { runHiggsfield } from "./higgsfield.js";
 import { runYoutube } from "./youtube.js";
 import { runScript } from "./script.js";
 import { runOrchestrate } from "./orchestrate.js";
+import { runPlanFeatures } from "./plan-features.js";
 import { runRunDaily } from "./run-daily.js";
 
 async function main(argv: string[]): Promise<number> {
@@ -31,6 +32,8 @@ async function main(argv: string[]): Promise<number> {
       return runScript(rest);
     case "orchestrate":
       return runOrchestrate(rest);
+    case "plan:features":
+      return runPlanFeatures(rest);
     case "run-daily":
       return runRunDaily(rest);
     case undefined:
@@ -60,6 +63,7 @@ function printUsage(): void {
   console.log("  youtube      Sign in to YouTube and publish a generated video (login|status|upload)");
   console.log("  script       Write a script from a plan slot and gate it with the AI reviewer");
   console.log("  orchestrate  Run one slot end-to-end: script+review -> generate -> publish (unlisted)");
+  console.log("  plan:features  Enumerate one feature-demo slot per app screenshot per channel");
   console.log("  run-daily    Run the day's scheduled slot(s) by source (event/competitor) for cron");
   console.log("  help         Show this help");
 }

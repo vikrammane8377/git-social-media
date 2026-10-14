@@ -43,7 +43,12 @@ export interface PlanRequest {
   targets: { eventSlots: number; competitorSlots: number };
 }
 
-const VALID_SOURCES: ReadonlySet<string> = new Set<SlotSource>(["event", "competitor", "evergreen"]);
+const VALID_SOURCES: ReadonlySet<string> = new Set<SlotSource>([
+  "event",
+  "competitor",
+  "evergreen",
+  "feature",
+]);
 
 function toStr(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";

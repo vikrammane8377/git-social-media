@@ -57,4 +57,74 @@ describe("loadScriptWriterConfig", () => {
     );
     expect(config.productFacts).toEqual(["only one fact"]);
   });
+
+  it("defaults the outro to an animated Wan outro with the icon + app-screen refs", () => {
+    const config = loadScriptWriterConfig(tempConfigDir());
+    expect(config.outro.enabled).toBe(true);
+    expect(config.outro.mode).toBe("animated");
+    expect(config.outro.durationSeconds).toBe(6);
+    expect(config.outro.referenceAssets).toEqual([
+      "assets/brand/app_icon.png",
+      "assets/brand/screenshots/01-spanish-learning-path.png",
+    ]);
+    expect(config.outro.badgeOverlay).toBe(true);
+    expect(config.outro.scenePrompt.length).toBeGreaterThan(0);
+  });
+
+  it("parses outro mode/referenceAssets/scenePrompt and rounds the duration to an int", () => {
+    const config = loadScriptWriterConfig(
+      tempConfigDir(
+        JSON.stringify({
+          outro: {
+            mode: "endcard",
+            durationSeconds: 2.5,
+            referenceAssets: ["assets/brand/app_icon.png", "assets/brand/extra.png"],
+            scenePrompt: "Custom outro scene.",
+            badgeOverlay: false,
+          },
+        }),
+      ),
+    );
+    expect(config.outro.mode).toBe("endcard");
+    // 2.5 rounds to a whole second so Wan validates it.
+    expect(config.outro.durationSeconds).toBe(3);
+    expect(config.outro.referenceAssets).toEqual([
+      "assets/brand/app_icon.png",
+      "assets/brand/extra.png",
+    ]);
+    expect(config.outro.scenePrompt).toBe("Custom outro scene.");
+    expect(config.outro.badgeOverlay).toBe(false);
+  });
+
+  it("ignores an invalid outro mode, keeping the animated default", () => {
+    const config = loadScriptWriterConfig(
+      tempConfigDir(JSON.stringify({ outro: { mode: "spinny" } })),
+    );
+    expect(config.outro.mode).toBe("animated");
+  });
+
+  it("defaults the outro appScreenshot and badgeTailSeconds", () => {
+    const config = loadScriptWriterConfig(tempConfigDir());
+    expect(config.outro.appScreenshot).toBe("assets/brand/screenshots/01-spanish-learning-path.png");
+    expect(config.outro.badgeTailSeconds).toBe(6);
+  });
+
+  it("parses outro appScreenshot and rounds badgeTailSeconds to an int", () => {
+    const config = loadScriptWriterConfig(
+      tempConfigDir(
+        JSON.stringify({
+          outro: { appScreenshot: "assets/brand/screenshots/07-feature.png", badgeTailSeconds: 4.6 },
+        }),
+      ),
+    );
+    expect(config.outro.appScreenshot).toBe("assets/brand/screenshots/07-feature.png");
+    expect(config.outro.badgeTailSeconds).toBe(5);
+  });
+
+  it("ignores a non-positive badgeTailSeconds, keeping the default", () => {
+    const config = loadScriptWriterConfig(
+      tempConfigDir(JSON.stringify({ outro: { badgeTailSeconds: 0 } })),
+    );
+    expect(config.outro.badgeTailSeconds).toBe(6);
+  });
 });

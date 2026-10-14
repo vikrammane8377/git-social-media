@@ -55,6 +55,12 @@ export interface ChannelConfig {
   plannerBrief: string;
   /** Persona injected into the script writer's prompt. */
   writerPersona: string;
+  /**
+   * Spoken call-to-action for the outro, in the channel's own language. Bix
+   * speaks this line in the animated outro so the CTA matches the audience
+   * (Spanish on the Spanish channel, English on the Global channel).
+   */
+  outroCta: string;
   /** Safety/claims guardrails the writer and reviewer enforce. */
   productFacts: string[];
   /** YouTube metadata defaults. */
@@ -106,6 +112,7 @@ export const DEFAULT_CHANNELS: Record<ChannelId, ChannelConfig> = {
       "Spanish, weaving in the English being practised. Keep the quick wit, cheeky",
       "challenges and playful overconfidence — but the actual lesson must be correct.",
     ].join("\n"),
+    outroCta: "Aprende un idioma conmigo: descarga Bix Learn y empieza a practicar.",
     productFacts: [
       ...SHARED_PRODUCT_FACTS,
       "Respect the locale: distinguish Spain and Latin American Spanish variants; do not label a valid regional form an error.",
@@ -140,7 +147,11 @@ export const DEFAULT_CHANNELS: Record<ChannelId, ChannelConfig> = {
       "to a global event, a top-language quirk, or a Bix app feature. Keep the quick",
       "wit, cheeky challenges and playful overconfidence — but the lesson must be",
       "correct.",
+      "For a false friend, first state the trap word in its bare form matching the",
+      'English spelling (e.g. "in German, Gift means poison") before giving the',
+      "correct alternative.",
     ].join("\n"),
+    outroCta: "Learn a language with me — download Bix Learn and start practicing.",
     productFacts: [
       ...SHARED_PRODUCT_FACTS,
       "Respect each language's regional variants; do not label a valid regional form an error.",
@@ -186,6 +197,7 @@ function asOverride(value: unknown): ChannelOverride {
   }
   if (typeof r.plannerBrief === "string" && r.plannerBrief.trim()) out.plannerBrief = r.plannerBrief;
   if (typeof r.writerPersona === "string" && r.writerPersona.trim()) out.writerPersona = r.writerPersona;
+  if (typeof r.outroCta === "string" && r.outroCta.trim()) out.outroCta = r.outroCta.trim();
   if (Array.isArray(r.productFacts)) {
     out.productFacts = r.productFacts
       .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
@@ -224,6 +236,7 @@ function mergeChannel(base: ChannelConfig, override: ChannelOverride | undefined
     primaryLanguage: asString(override.primaryLanguage, base.primaryLanguage),
     plannerBrief: asString(override.plannerBrief, base.plannerBrief),
     writerPersona: asString(override.writerPersona, base.writerPersona),
+    outroCta: asString(override.outroCta, base.outroCta),
     productFacts: override.productFacts && override.productFacts.length > 0
       ? override.productFacts
       : base.productFacts,

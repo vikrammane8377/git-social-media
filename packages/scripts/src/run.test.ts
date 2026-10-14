@@ -134,6 +134,34 @@ describe("runScriptWriter", () => {
     expect(saved).toHaveLength(1);
   });
 
+  it("forwards the vision images to the writer on write and revise", async () => {
+    const seen: { write?: readonly string[]; revise?: readonly string[] } = {};
+    const writer: Writer = {
+      async write(_slot, _assets, images) {
+        seen.write = images;
+        return baseDraft;
+      },
+      async revise(_slot, _draft, _review, _assets, images) {
+        seen.revise = images;
+        return baseDraft;
+      },
+    };
+    const images = ["data:image/png;base64,AAAA"];
+    await runScriptWriter({
+      reader: fakeReader(slot()),
+      writer,
+      reviewer: scriptedReviewer(["REVISE", "PASS"]),
+      store: fakeStore([]),
+      maxRevisions: 2,
+      provider: "wan",
+      slotId: "2026-10-001",
+      images,
+    });
+
+    expect(seen.write).toEqual(images);
+    expect(seen.revise).toEqual(images);
+  });
+
   it("throws when the slot id is missing", async () => {
     await expect(
       runScriptWriter({

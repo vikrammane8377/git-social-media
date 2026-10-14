@@ -25,6 +25,8 @@ interface VideoArgs {
   aspectRatio: string;
   duration: string;
   generateAudio: boolean;
+  /** Wan only: pass every --ref as a plain reference (no start_image first frame). */
+  referencesOnly: boolean;
   // Talking-avatar (provider "avatar") only:
   scriptFile?: string;
   script?: string;
@@ -45,6 +47,7 @@ function parseArgs(argv: string[]): VideoArgs {
     aspectRatio: "9:16",
     duration: "5",
     generateAudio: true,
+    referencesOnly: false,
     publish: false,
     privacy: "public",
   };
@@ -100,6 +103,9 @@ function parseArgs(argv: string[]): VideoArgs {
       case "--no-audio":
         args.generateAudio = false;
         break;
+      case "--references-only":
+        args.referencesOnly = true;
+        break;
       case "--publish":
         args.publish = true;
         break;
@@ -138,6 +144,7 @@ function printVideoUsage(): void {
   console.log("  --duration <val>       whole seconds 2-30             (default 5)");
   console.log("  --resolution <val>     480p | 720p | 1080p            (default 720p)");
   console.log("  --generate-audio <b>   true | false                   (default true)");
+  console.log("  --references-only      Pass every --ref as a plain reference (no start_image)");
   console.log("  (requires: npm run higgsfield -- login)");
   console.log("");
   console.log("seedance (silent/ambient clip):");
@@ -285,6 +292,7 @@ export async function runVideo(argv: string[]): Promise<number> {
     aspectRatio: args.aspectRatio,
     duration,
     generateAudio: args.generateAudio,
+    referencesOnly: args.referencesOnly,
     textInput,
     voice,
     numFrames,

@@ -7,6 +7,8 @@ import { computeJobKey } from "./job-key.js";
 export interface VideoRequest {
   readonly prompt: string;
   readonly refImagePaths: readonly string[];
+  /** Pass all reference images as plain references with no first-frame start_image. */
+  readonly referencesOnly?: boolean;
   readonly resolution: string;
   readonly aspectRatio: string;
   readonly duration: number | string;
@@ -136,6 +138,7 @@ export class VideoRunner {
       const input: VideoJobInput = {
         prompt: request.prompt,
         imageUrls,
+        referencesOnly: request.referencesOnly,
         resolution: request.resolution,
         aspectRatio: request.aspectRatio,
         duration: request.duration,

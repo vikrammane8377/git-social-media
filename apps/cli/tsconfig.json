@@ -14,7 +14,8 @@
     { "path": "../../packages/competitors" },
     { "path": "../../packages/scripts" },
     { "path": "../../packages/server" },
-    { "path": "../../packages/captions" }
+    { "path": "../../packages/captions" },
+    { "path": "../../packages/brand" }
   ],
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "dist"]

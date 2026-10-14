@@ -19,6 +19,8 @@ export { type AssetRecord, AssetReader } from "./asset-reader.js";
 export {
   type VideoDefaults,
   type ImageGenDefaults,
+  type ThumbnailDefaults,
+  type OutroDefaults,
   type ScriptWriterConfig,
   DEFAULT_SCRIPT_WRITER_CONFIG,
   loadScriptWriterConfig,

@@ -34,7 +34,9 @@ const deps = (client: LlmClient) => ({
   client,
   model: "gpt-5.6-sol",
   reasoningEffort: "medium" as const,
+  writerPersona: "You are Bix, a witty English tutor for Spanish speakers.",
   productFacts: ["No free/unlimited claims.", "No on-screen text."],
+  outroCta: "Learn a language with me — download Bix Learn, free on iOS, Android and web.",
 });
 
 describe("OpenAiScriptWriter", () => {
@@ -228,5 +230,61 @@ describe("OpenAiScriptWriter", () => {
     await writer.write(slot());
 
     expect(captured.last?.input).toContain("neededImages");
+  });
+
+  it("surfaces the slot source and the required outro CTA ending in the write prompt", async () => {
+    const captured: { last?: LlmRequest } = {};
+    const output = JSON.stringify({ scenePrompt: "s", dialogue: "d", durationSeconds: 5 });
+    const writer = new OpenAiScriptWriter(deps(mockClient(output, captured)));
+    await writer.write(slot());
+
+    // The slot's source is briefed to the writer...
+    expect(captured.last?.input).toContain("source: evergreen");
+    // ...and the channel CTA must end the spoken dialogue verbatim.
+    expect(captured.last?.input).toContain(
+      "Learn a language with me — download Bix Learn, free on iOS, Android and web.",
+    );
+    expect(captured.last?.input).toContain("Required spoken ending");
+  });
+
+  it("adds the FEATURE SHOWCASE brief for a feature slot", async () => {
+    const captured: { last?: LlmRequest } = {};
+    const output = JSON.stringify({ scenePrompt: "s", dialogue: "d", durationSeconds: 5 });
+    const writer = new OpenAiScriptWriter(deps(mockClient(output, captured)));
+    await writer.write(slot({ source: "feature" }));
+
+    expect(captured.last?.input).toContain("source: feature");
+    expect(captured.last?.input).toContain("FEATURE SHOWCASE");
+  });
+
+  it("forwards vision images to the model on write", async () => {
+    const captured: { last?: LlmRequest } = {};
+    const output = JSON.stringify({ scenePrompt: "s", dialogue: "d", durationSeconds: 5 });
+    const writer = new OpenAiScriptWriter(deps(mockClient(output, captured)));
+    const images = ["data:image/png;base64,AAAA"];
+    await writer.write(slot({ source: "feature" }), [], images);
+
+    expect(captured.last?.images).toEqual(images);
+  });
+
+  it("forwards vision images to the model on revise", async () => {
+    const captured: { last?: LlmRequest } = {};
+    const output = JSON.stringify({ scenePrompt: "s", dialogue: "d", durationSeconds: 5 });
+    const writer = new OpenAiScriptWriter(deps(mockClient(output, captured)));
+    const review: ReviewResult = {
+      decision: "REVISE",
+      englishMeaning: "",
+      brandVoice: "",
+      issues: ["tighten the pacing"],
+      productClaims: [],
+      coverage: "",
+      uncertainty: "",
+      nextStep: "revise",
+    };
+    const prev = { scenePrompt: "old", dialogue: "old", durationSeconds: 5, usedAssets: [], neededImages: [] };
+    const images = ["data:image/png;base64,BBBB"];
+    await writer.revise(slot({ source: "feature" }), prev, review, [], images);
+
+    expect(captured.last?.images).toEqual(images);
   });
 });

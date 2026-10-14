@@ -15,6 +15,7 @@ export default defineConfig({
       "@bix/competitors": r("./packages/competitors/src/index.ts"),
       "@bix/scripts": r("./packages/scripts/src/index.ts"),
       "@bix/server": r("./packages/server/src/index.ts"),
+      "@bix/brand": r("./packages/brand/src/index.ts"),
     },
   },
   test: {

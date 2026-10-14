@@ -14,6 +14,25 @@
     "enabled": true,
     "sourceLang": "auto"
   },
+  "image": {
+    "artDirection": "Art direction: a clean, uncluttered backdrop consistent with Bix's brand palette; soft, flattering lighting; the subject centered and fully in frame; high production value; match the reference image's background and style."
+  },
+  "thumbnail": {
+    "enabled": true
+  },
+  "outro": {
+    "enabled": true,
+    "mode": "animated",
+    "durationSeconds": 6,
+    "referenceAssets": [
+      "assets/brand/app_icon.png",
+      "assets/brand/screenshots/01-spanish-learning-path.png"
+    ],
+    "scenePrompt": "Bix, the character from the reference image, stands in a bright, playful, on-brand studio and turns to camera with a big friendly smile, then proudly holds up a modern smartphone. The phone screen clearly shows the Bix Learn app interface from the reference screenshot. Polished, energetic app-commercial style with soft shapes, confetti and gentle sparkles, and a slow camera push-in. No on-screen text.",
+    "badgeOverlay": true,
+    "appScreenshot": "assets/brand/screenshots/01-spanish-learning-path.png",
+    "badgeTailSeconds": 6
+  },
   "productFacts": [
     "Do not promise fluency deadlines (e.g. \"fluent in 7 days\") or guaranteed results; use accurate, practice-focused wording instead.",
     "Do not claim free or unlimited access. \"Talk with Bix\" is an Ultra feature; do not infer free or unlimited conversations.",

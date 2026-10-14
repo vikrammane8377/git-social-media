@@ -87,6 +87,12 @@ export interface ImageGeneratorDeps {
   model: string;
   /** Output size, e.g. "1024x1536" (vertical 9:16). */
   size: string;
+  /**
+   * Brand art direction appended to every prompt (from config.image.artDirection)
+   * so generated stills get a clean, consistent, on-brand look. Optional: an empty
+   * value simply omits the art-direction line.
+   */
+  artDirection?: string;
 }
 
 /**
@@ -99,11 +105,13 @@ export class ImageGenerator {
   private readonly client: ImageGenClient;
   private readonly model: string;
   private readonly size: string;
+  private readonly artDirection: string;
 
   constructor(deps: ImageGeneratorDeps) {
     this.client = deps.client;
     this.model = deps.model;
     this.size = deps.size;
+    this.artDirection = deps.artDirection?.trim() ?? "";
   }
 
   /** Generate one still for a requested image, optionally anchored to references. */
@@ -119,15 +127,17 @@ export class ImageGenerator {
     });
   }
 
-  /** Compose the final image-gen prompt: mascot + style anchor + guardrails. */
+  /** Compose the final image-gen prompt: mascot + style anchor + art direction + guardrails. */
   private buildPrompt(need: NeededImage): string {
-    return [
+    const lines = [
       `Generate a single reference still of ${BIX_MASCOT_DESCRIPTION}.`,
       "Match Bix's established look and the style of any provided reference",
       "image(s) for subject and style consistency.",
       `Scene: ${need.prompt}`,
       "Vertical 9:16 composition. Absolutely no on-screen text, captions,",
       "subtitles, signs, watermarks or logos.",
-    ].join("\n");
+    ];
+    if (this.artDirection) lines.push(this.artDirection);
+    return lines.join("\n");
   }
 }

@@ -26,7 +26,8 @@
       "@bix/competitors": ["./packages/competitors/src/index.ts"],
       "@bix/scripts": ["./packages/scripts/src/index.ts"],
       "@bix/server": ["./packages/server/src/index.ts"],
-      "@bix/captions": ["./packages/captions/src/index.ts"]
+      "@bix/captions": ["./packages/captions/src/index.ts"],
+      "@bix/brand": ["./packages/brand/src/index.ts"]
     }
   }
 }

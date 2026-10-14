@@ -146,6 +146,11 @@ export async function startLogin(): Promise<LoginHandle> {
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("code_challenge", challenge);
   authUrl.searchParams.set("code_challenge_method", "S256");
+  // Force a fresh sign-in so the human picks which account to connect. Without
+  // this, Clerk silently reuses whatever session is already active in the
+  // browser, which can connect the wrong account (e.g. a personal login instead
+  // of the team's).
+  authUrl.searchParams.set("prompt", "login");
 
   const codePromise = captureAuthCode(state);
 

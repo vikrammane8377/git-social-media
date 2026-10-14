@@ -22,6 +22,12 @@ export interface RunScriptWriterDeps {
   /** Provider the emitted prompt targets (shapes the composed prompt). */
   provider: string;
   slotId: string;
+  /**
+   * Optional vision inputs (data URLs) forwarded to the writer on both the
+   * initial write and every revise — e.g. a feature screenshot the writer should
+   * demo. Absent for non-feature slots.
+   */
+  images?: readonly string[];
   logger?: (message: string) => void;
 }
 
@@ -51,7 +57,7 @@ export async function runScriptWriter(deps: RunScriptWriterDeps): Promise<Script
   }
 
   log(`Writing a script for slot ${slot.id} (${slot.format} — ${slot.topic})...`);
-  let draft = await deps.writer.write(slot, assets);
+  let draft = await deps.writer.write(slot, assets, deps.images);
   let review = await deps.reviewer.review(slot, draft);
   log(`Reviewer decision: ${review.decision}.`);
 
@@ -59,7 +65,7 @@ export async function runScriptWriter(deps: RunScriptWriterDeps): Promise<Script
   while (review.decision === "REVISE" && revisions < deps.maxRevisions) {
     revisions += 1;
     log(`Revising (attempt ${revisions} of ${deps.maxRevisions})...`);
-    draft = await deps.writer.revise(slot, draft, review, assets);
+    draft = await deps.writer.revise(slot, draft, review, assets, deps.images);
     review = await deps.reviewer.review(slot, draft);
     log(`Reviewer decision: ${review.decision}.`);
   }

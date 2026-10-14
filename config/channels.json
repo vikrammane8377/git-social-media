@@ -7,10 +7,10 @@
       "posting": { "time": "13:00", "timezone": "America/Mexico_City" }
     },
     "global": {
-      "label": "Bix Global",
+      "label": "Bix Learn",
       "enabled": true,
       "primaryLanguage": "en",
-      "posting": { "time": "18:00", "timezone": "UTC" }
+      "posting": { "time": "01:30", "timezone": "Asia/Kolkata" }
     }
   }
 }

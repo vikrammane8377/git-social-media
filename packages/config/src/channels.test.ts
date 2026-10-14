@@ -70,6 +70,27 @@ describe("channel loader merge precedence", () => {
     expect(spanish.posting.time).toBe(DEFAULT_CHANNELS.spanish.posting.time);
   });
 
+  it("defaults each channel's outro CTA to its own language", () => {
+    const channels = loadChannels(dir);
+    const [spanish, global] = channels;
+    expect(spanish.outroCta).toBe(DEFAULT_CHANNELS.spanish.outroCta);
+    expect(global.outroCta).toBe(DEFAULT_CHANNELS.global.outroCta);
+    // Spanish CTA is Spanish; Global CTA is English.
+    expect(spanish.outroCta).toContain("descarga Bix Learn");
+    expect(global.outroCta).toContain("download Bix Learn");
+  });
+
+  it("overrides outroCta from the file and keeps the default when blank", () => {
+    writeFileSync(
+      join(dir, "channels.json"),
+      JSON.stringify({ channels: { global: { outroCta: "Grab Bix Learn now." } } }),
+    );
+    expect(getChannel("global", dir).outroCta).toBe("Grab Bix Learn now.");
+    // A blank runtime override falls through to the default.
+    const spanish = getChannel("spanish", dir, { spanish: { outroCta: "  " } });
+    expect(spanish.outroCta).toBe(DEFAULT_CHANNELS.spanish.outroCta);
+  });
+
   it("filters to enabled channels only", () => {
     const enabled = enabledChannels(dir, { global: { enabled: false } });
     expect(enabled.map((c) => c.id)).toEqual(["spanish"]);

@@ -36,6 +36,13 @@ export {
   loadCompetitorConfig,
 } from "./config.js";
 export { ContentPlanStore } from "./store.js";
+export {
+  FEATURE_MONTH,
+  topicFromFilename,
+  featureSlotId,
+  buildFeatureSlots,
+  insertFeatureSlots,
+} from "./feature-plan.js";
 export { renderPlanReport, renderPlanJson } from "./report.js";
 export {
   type EventsReader,

@@ -157,6 +157,7 @@ export async function runScript(argv: string[]): Promise<number> {
       reasoningEffort: config.reasoningEffort,
       writerPersona: channel.writerPersona,
       productFacts: channel.productFacts,
+      outroCta: channel.outroCta,
     });
     const reviewer = new OpenAiScriptReviewer({
       client: sol,

@@ -51,7 +51,7 @@ export interface CompetitorInsights {
 }
 
 /** Where a plan slot's idea came from. */
-export type SlotSource = "event" | "competitor" | "evergreen";
+export type SlotSource = "event" | "competitor" | "evergreen" | "feature";
 
 /** One day in the 30-day plan. */
 export interface PlanSlot {

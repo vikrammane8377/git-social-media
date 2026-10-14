@@ -71,6 +71,13 @@ export interface ScriptWriterDeps {
   writerPersona: string;
   /** Safety/claims guardrails the writer must respect (same list the reviewer enforces). */
   productFacts: string[];
+  /**
+   * The channel's spoken call-to-action, in the channel's language. The writer
+   * must END every script's dialogue with this CTA (in Bix's voice) so the clip
+   * flows straight from the lesson into the app-promo ending — no separate outro
+   * clip. Wired from the channel config.
+   */
+  outroCta: string;
 }
 
 function toStr(value: unknown): string {
@@ -104,6 +111,7 @@ export class OpenAiScriptWriter {
   private readonly reasoningEffort: ReasoningEffort;
   private readonly writerPersona: string;
   private readonly productFacts: string[];
+  private readonly outroCta: string;
 
   constructor(deps: ScriptWriterDeps) {
     this.client = deps.client;
@@ -111,14 +119,24 @@ export class OpenAiScriptWriter {
     this.reasoningEffort = deps.reasoningEffort;
     this.writerPersona = deps.writerPersona;
     this.productFacts = deps.productFacts;
+    this.outroCta = deps.outroCta;
   }
 
-  /** Write the first draft for a slot. */
-  async write(slot: PlanSlotRecord, assets: readonly AssetRecord[] = []): Promise<ScriptDraft> {
+  /**
+   * Write the first draft for a slot. `images` are optional data-URL vision
+   * inputs (e.g. a feature screenshot the writer should demo); when present they
+   * are forwarded to the model so it can see the exact feature it is scripting.
+   */
+  async write(
+    slot: PlanSlotRecord,
+    assets: readonly AssetRecord[] = [],
+    images?: readonly string[],
+  ): Promise<ScriptDraft> {
     const response = await this.client.create({
       model: this.model,
       input: this.buildWritePrompt(slot, assets),
       reasoningEffort: this.reasoningEffort,
+      images,
     });
     return this.toDraft(response.output_text, assets);
   }
@@ -129,11 +147,13 @@ export class OpenAiScriptWriter {
     draft: ScriptDraft,
     review: ReviewResult,
     assets: readonly AssetRecord[] = [],
+    images?: readonly string[],
   ): Promise<ScriptDraft> {
     const response = await this.client.create({
       model: this.model,
       input: this.buildRevisePrompt(slot, draft, review, assets),
       reasoningEffort: this.reasoningEffort,
+      images,
     });
     return this.toDraft(response.output_text, assets);
   }
@@ -250,11 +270,51 @@ export class OpenAiScriptWriter {
 
   private slotBlock(slot: PlanSlotRecord): string[] {
     return [
+      `  source: ${slot.source}`,
       `  format: ${slot.format}`,
       `  topic: ${slot.topic}`,
       `  hook: ${slot.hook || "(none given — write one)"}`,
       `  why it's in the plan: ${slot.why || "(n/a)"}`,
       `  brand fit: ${slot.brandFit}/10`,
+    ];
+  }
+
+  /**
+   * A source-specific brief line. For a `feature` slot the attached screenshot
+   * (passed as a vision input) IS the subject: Bix demos that exact app feature,
+   * then flows into the app-promo ending. Other sources already carry their
+   * intent in topic/hook/why, so they add no extra line.
+   */
+  private sourceBrief(slot: PlanSlotRecord): string[] {
+    if (slot.source === "feature") {
+      return [
+        "",
+        "FEATURE SHOWCASE: the attached screenshot shows one Bix Learn feature.",
+        "Demo it — Bix enthusiastically shows off this exact feature on screen,",
+        "explaining what it does in a quick, witty way, then moves into the",
+        "app-promo ending below.",
+      ];
+    }
+    return [];
+  }
+
+  /**
+   * The REQUIRED spoken ending every script must finish on: Bix speaks the
+   * channel's call-to-action verbatim (in the channel's language), and the scene
+   * transitions to Bix holding up a phone showing the Bix Learn app. This bakes
+   * the app-promo outro into the single clip so no separate outro is generated.
+   */
+  private ctaEnding(): string[] {
+    return [
+      "",
+      "Required spoken ending (the clip is ONE continuous take — no separate outro):",
+      "- END the dialogue with this exact call-to-action, in the channel's language,",
+      `  kept in Bix's witty voice: "${this.outroCta}"`,
+      "- In scenePrompt, END the scene by having Bix turn to camera and proudly hold",
+      "  up a modern smartphone whose screen shows the Bix Learn app, in an upbeat,",
+      "  polished app-commercial style. Still NO on-screen text, captions or signs.",
+      "- Budget the dialogue so the lesson AND this CTA fit the duration at a relaxed",
+      "  pace — the CTA is part of the spoken word count, not an extra.",
     ];
   }
 
@@ -268,12 +328,14 @@ export class OpenAiScriptWriter {
       "",
       "Content-plan slot to script:",
       ...this.slotBlock(slot),
+      ...this.sourceBrief(slot),
       ...this.assetBlock(assets),
       "",
       "Hard guardrails (must all hold):",
       ...this.guardrails(),
       "",
       ...this.durationGuidance(),
+      ...this.ctaEnding(),
       "The scene is spoken only: describe the visual/motion but NEVER ask for",
       "on-screen text, captions, subtitles or signs.",
       ...this.neededImagesInstructions(),
@@ -310,10 +372,12 @@ export class OpenAiScriptWriter {
       "",
       "Content-plan slot:",
       ...this.slotBlock(slot),
+      ...this.sourceBrief(slot),
       ...this.assetBlock(assets),
       "",
       "Hard guardrails (must all hold):",
       ...this.guardrails(),
+      ...this.ctaEnding(),
       "",
       "Your previous draft:",
       `  scenePrompt: ${JSON.stringify(draft.scenePrompt)}`,

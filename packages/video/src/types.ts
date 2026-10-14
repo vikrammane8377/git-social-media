@@ -10,6 +10,14 @@ export interface VideoJobInput {
   readonly prompt: string;
   /** URLs of already-uploaded reference images. */
   readonly imageUrls: readonly string[];
+  /**
+   * When true, every uploaded image is passed as a plain reference (the model's
+   * `reference_image` role / `image_references`) with NO first-frame
+   * `start_image`. Wan rejects a `start_image` combined with reference media, so
+   * reference-only generations (e.g. the branded outro) set this. Default/false
+   * keeps the legacy behaviour: the first image is the `start_image`.
+   */
+  readonly referencesOnly?: boolean;
   /** "480p" | "720p" | "1080p". */
   readonly resolution: string;
   /** e.g. "9:16", "16:9", "auto". */

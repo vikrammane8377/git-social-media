@@ -16,6 +16,7 @@
     "@bix/competitors": "*",
     "@bix/scripts": "*",
     "@bix/server": "*",
-    "@bix/captions": "*"
+    "@bix/captions": "*",
+    "@bix/brand": "*"
   }
 }

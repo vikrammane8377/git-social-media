@@ -68,4 +68,35 @@ describe("ImageGenerator", () => {
 
     expect(captured.last?.referenceImages).toBeUndefined();
   });
+
+  it("appends brand art direction to the prompt when set", async () => {
+    const captured: { last?: ImageGenRequest } = {};
+    const artDirection = "Clean, uncluttered backdrop; soft flattering lighting.";
+    const generator = new ImageGenerator({
+      client: fakeClient(captured),
+      model: "m",
+      size: "1024x1536",
+      artDirection,
+    });
+
+    await generator.generate(need);
+
+    expect(captured.last?.prompt).toContain(artDirection);
+  });
+
+  it("omits the art-direction line when unset or blank", async () => {
+    const captured: { last?: ImageGenRequest } = {};
+    const generator = new ImageGenerator({
+      client: fakeClient(captured),
+      model: "m",
+      size: "1024x1536",
+      artDirection: "   ",
+    });
+
+    await generator.generate(need);
+
+    // Prompt ends with the guardrail line, not a trailing art-direction line.
+    const prompt = captured.last?.prompt ?? "";
+    expect(prompt.endsWith("watermarks or logos.")).toBe(true);
+  });
 });

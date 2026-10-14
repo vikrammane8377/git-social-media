@@ -6,24 +6,39 @@ import { Chip, ErrorMsg, Loading, useAsync } from "../ui";
 const DECISIONS = ["ALL", "PASS", "REVISE", "NEEDS_EVIDENCE", "NONE"];
 const STATUSES = ["ALL", "COMPLETED", "IN_PROGRESS", "SUBMITTED", "FAILED", "NONE"];
 
+/** Prettify a channel id (e.g. "spanish" → "Spanish") for the tab label. */
+function channelLabel(id: string): string {
+  return id.charAt(0).toUpperCase() + id.slice(1);
+}
+
 export function Overview() {
   const { data, error, loading, reload } = useAsync(() => api.overview(), []);
   // Publish defaults drive the privacy each manual run posts with (default public).
   const { data: settings } = useAsync(() => api.settings(), []);
   const privacy = settings?.publishDefaults.privacy ?? "public";
+  const [channel, setChannel] = useState("ALL");
   const [decision, setDecision] = useState("ALL");
   const [videoStatus, setVideoStatus] = useState("ALL");
+
+  // Distinct channels present in the plan, with per-channel slot counts for the tabs.
+  const channelCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of data ?? []) counts.set(r.channel, (counts.get(r.channel) ?? 0) + 1);
+    return counts;
+  }, [data]);
+  const channels = useMemo(() => [...channelCounts.keys()].sort(), [channelCounts]);
 
   const rows = useMemo(() => {
     if (!data) return [];
     return data.filter((r) => {
       const d = r.scriptDecision ?? "NONE";
       const v = r.videoStatus ?? "NONE";
+      if (channel !== "ALL" && r.channel !== channel) return false;
       if (decision !== "ALL" && d !== decision) return false;
       if (videoStatus !== "ALL" && v !== videoStatus) return false;
       return true;
     });
-  }, [data, decision, videoStatus]);
+  }, [data, channel, decision, videoStatus]);
 
   if (loading) return <Loading />;
   if (error) return <ErrorMsg message={error} />;
@@ -35,6 +50,29 @@ export function Overview() {
         <p className="muted">
           No plan slots yet. Run the competitor scan to build a content plan.
         </p>
+      )}
+      {channels.length > 0 && (
+        <div className="tabs" role="tablist">
+          <button
+            className={channel === "ALL" ? "tab active" : "tab"}
+            role="tab"
+            aria-selected={channel === "ALL"}
+            onClick={() => setChannel("ALL")}
+          >
+            All <span className="tab-count">{data?.length ?? 0}</span>
+          </button>
+          {channels.map((id) => (
+            <button
+              key={id}
+              className={channel === id ? "tab active" : "tab"}
+              role="tab"
+              aria-selected={channel === id}
+              onClick={() => setChannel(id)}
+            >
+              {channelLabel(id)} <span className="tab-count">{channelCounts.get(id) ?? 0}</span>
+            </button>
+          ))}
+        </div>
       )}
       <div className="filters">
         <label>
@@ -55,7 +93,8 @@ export function Overview() {
         </label>
         <button onClick={reload}>Refresh</button>
         <span className="muted">
-          {rows.length} of {data?.length ?? 0} slots
+          {rows.length} of {channel === "ALL" ? (data?.length ?? 0) : (channelCounts.get(channel) ?? 0)}{" "}
+          {channel === "ALL" ? "slots" : `${channelLabel(channel)} slots`}
         </span>
       </div>
 

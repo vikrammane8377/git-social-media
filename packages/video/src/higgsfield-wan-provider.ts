@@ -88,6 +88,10 @@ function toStatusState(status: string): VideoStatusState {
   switch (status) {
     case "queued":
     case "pending":
+    case "waiting":
+      // "waiting" is the provider seating a freshly submitted job in its queue
+      // before it reports "queued" — a transient pre-run state, not a failure.
+      // Keep polling; the runner's maxPolls timeout still guards a stuck job.
       return "IN_QUEUE";
     case "in_progress":
       return "IN_PROGRESS";
@@ -138,16 +142,20 @@ export class HiggsfieldWanProvider implements VideoProvider {
   async submit(input: VideoJobInput): Promise<{ requestId: string }> {
     const mediaId = input.imageUrls[0];
     if (!mediaId) {
-      throw new Error("Wan 3.0 needs at least one reference image (start_image).");
+      throw new Error("Wan 3.0 needs at least one reference image.");
     }
     const duration = toWanDuration(input.duration);
 
-    // First image is the first frame (start_image); any others are extra
-    // references. A single image yields exactly the previous payload.
-    const medias = input.imageUrls.map((value, i) => ({
-      value,
-      role: i === 0 ? "start_image" : WAN_REFERENCE_ROLE,
-    }));
+    // Reference-only mode: every image is a plain reference (no start_image), so
+    // Wan does not reject the request for combining a start_image with reference
+    // media. Otherwise the first image is the first frame (start_image) and any
+    // others are extra references — a single image yields the previous payload.
+    const medias = input.referencesOnly
+      ? input.imageUrls.map((value) => ({ value, role: WAN_REFERENCE_ROLE }))
+      : input.imageUrls.map((value, i) => ({
+          value,
+          role: i === 0 ? "start_image" : WAN_REFERENCE_ROLE,
+        }));
 
     const params: Record<string, unknown> = {
       model: WAN3_MODEL_ID,
